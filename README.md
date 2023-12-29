@@ -7,6 +7,7 @@ This Python script extracts, processes, and restructures data from an Excel file
 - Imports Data using Pandas
 - Extracts and Separates Information using regular expressions
 - Rearranges Columns
+- Calculates Regular and Overtime Hours
 - Writes to New Excel File with auto-formatted column widths
 ## Installation Requirements:
 
@@ -33,3 +34,4 @@ This Python script extracts, processes, and restructures data from an Excel file
 
 * Modify the regular expression in the str.extract method to match your data structure.
 * Adjust column names and order in the df[['Name', 'Number', ...]] section.
+* Change the overtime threshold in the overtime_threshold variable if needed.
