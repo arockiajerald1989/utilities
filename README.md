@@ -1,26 +1,35 @@
-# Time and Material Report Automation
+## Overview
 
-This Python script automates the process of generating and processing a weekly timesheet report from a web application. It uses Selenium to interact with the web elements, downloads the report in Excel format, and performs data manipulation using Pandas and Openpyxl.
+This Python script extracts, processes, and restructures data from an Excel file, generating a new, well-formatted Excel file for further analysis and utilization.
 
-## Features:
+## Key Functionalities:
 
-- Automates login to a web application.
-- Navigates to the report generation page.
-- Selects the appropriate report type and date range.
-- Downloads the report in Excel format.
-- Cleans and processes the downloaded Excel file.
-- Creates a pivot table summarizing the data.
-- Saves the final report in a new Excel file.
+- Imports Data using Pandas
+- Extracts and Separates Information using regular expressions
+- Rearranges Columns
+- Writes to New Excel File with auto-formatted column widths
+## Installation Requirements:
 
-## Usage:
+- Python (version 3.6 or later)
+- Libraries:
+  * pandas
+  * openpyxl
+## Usage Instructions:
 
-1. Install the required Python libraries: Selenium, Pandas, Openpyxl.
-2. Replace the URL, username, and password with your specific credentials.
-3. Run the script using the command: `python time_and_material_report.py`.
-4. The script will generate the report and save it as `output_file.xlsx`.
+1. Install Required Libraries:
+   
+   ``` pip install pandas openpyxl ```
+   
+2. Confirm Input File Name:
+    - Within the script, verify that the output_file.xlsx placeholder aligns with your input file name.
+    
+3. Execute the Script:
 
-## Notes:
+    ``` python extract_data.py  # Replace with the actual script filename ```
 
-- The script is designed to work with a specific web application and may require modifications to work with different applications.
-- The script assumes that the downloaded Excel file is in a specific format. If the format changes, the data processing steps may need to be adjusted.
-- The script uses hard-coded locators to interact with the web elements. If the web elements change, the locators will need to be updated.
+4. Access Processed Data:
+   - The generated output file, extracted_data.xlsx, will contain the parsed and formatted data.
+## Additional Customization:
+
+* Modify the regular expression in the str.extract method to match your data structure.
+* Adjust column names and order in the df[['Name', 'Number', ...]] section.
