@@ -21,8 +21,8 @@ username_field = driver.find_element(By.ID, "userName")
 password_field = driver.find_element(By.ID, "password")
 
 # Replace with your actual credentials
-username = "38661"
-password = "123"
+username = "user"
+password = "pass"
 
 # Enter username and password
 username_field.send_keys(username)
@@ -49,7 +49,7 @@ dropdown_button.click()
 
 search_field = WebDriverWait(driver, 10).until(
     EC.element_to_be_clickable((By.XPATH, "//input[@role='searchbox']")))
-search_field.send_keys("Seven")
+search_field.send_keys("102")
 
 option = WebDriverWait(driver, 10).until(
     EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), '102')]"))  # Replace with appropriate locator
@@ -59,8 +59,8 @@ option.click()
 report_button = driver.find_elements(By.XPATH, "//input[@data-role='datepicker']")
 report_button[1].clear()
 report_button[2].clear()
-report_button[1].send_keys("12/25/2023")
-report_button[2].send_keys("12/31/2023")
+report_button[1].send_keys("01/08/2024")
+report_button[2].send_keys("01/14/2024")
 option = WebDriverWait(driver, 10).until(
     EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Generate']"))  # Replace with appropriate locator
 )
@@ -93,15 +93,30 @@ workbook.save("data-final.xlsx")
 
 # Load Excel data into a DataFrame
 df = pd.read_excel('data-final.xlsx', sheet_name='Sheet1')
+# Extract names and numbers using regular expressions
+df[['FullName', 'ID']] = df['name'].str.extract(r"(.*) \((\d+)\)")
+df = df.drop('name', axis=1)  # Drop the original 'won' column
+
+df['Project'] = df['won'].str[:4]  # Keep only first 3 for Project
+df['Team'] = df['won'].str[-3:]  # Keep only last 3 for Team
 
 # Create pivot table
 pivot_table = df.pivot_table(values='jobTime',
-                             index='name',
+                             index='ID',
                              columns='date',
                              aggfunc='sum', fill_value=0)  # Customize aggregation function
 
 pivot_table['Total Hours'] = pivot_table.sum(axis=1)
-# Save pivot table to a new Excel sheet
+
+# Group and concatenate unique Project and Team data
+project_data = df.groupby('ID')['Project'].apply(lambda x: ','.join(set(x.astype(str))))
+team_data = df.groupby('ID')['Team'].apply(lambda x: ','.join(set(x.astype(str))))
+test = df.groupby('ID')['FullName'].apply(lambda x: ','.join(set(x.astype(str))))
+
+# Merge unique Project and Team data into the pivot table
+pivot_table = pivot_table.merge(project_data, on='ID', how='left')
+pivot_table = pivot_table.merge(team_data, on='ID', how='left')
+pivot_table = pivot_table.merge(test, on='ID', how='left')
 
 # Create an Excel writer with openpyxl
 writer = pd.ExcelWriter('output_file.xlsx', engine='openpyxl')
@@ -121,11 +136,6 @@ writer.close()
 # Load the Excel file
 df = pd.read_excel('output_file.xlsx')
 
-# Extract names and numbers using regular expressions
-df[['Name', 'Number']] = df['name'].str.extract(r"(.*) \((\d+)\)")
-
-df = df.drop('name', axis=1)
-
 column_length = len(df.columns)
 
 # Extract regular and overtime hours
@@ -133,12 +143,78 @@ overtime_threshold = 40
 df['Regular Hours'] = df['Total Hours'].clip(upper=overtime_threshold)
 df['Overtime Hours'] = df['Total Hours'] - df['Regular Hours']
 
-df = df[['Name', 'Number'] + list(df.columns[0:column_length-3]) + ['Total Hours', 'Regular Hours', 'Overtime Hours']]
+# Add the 'No of Days' column
+df['No of Days > 0'] = 0
 
-# Write the results to a new Excel file with auto-fitted columns
-with pd.ExcelWriter('extracted_data.xlsx', engine='openpyxl') as writer:
-    df.to_excel(writer, index=False)
-    workbook = writer.book  # Access the workbook
-    worksheet = workbook.active  # Access the active worksheet
-    for column in worksheet.columns:
-        worksheet.column_dimensions[column[0].column_letter].auto_size = True
+# Calculate the count of days for each row
+for index, row in df.iterrows():
+    for column in list(df.columns[0:7]):
+       if row[column] > 0:
+           df.loc[index, 'No of Days > 0'] += 1
+
+# Add the 'No of Days' column
+df['No of Days >= 6'] = 0
+
+# Calculate the count of days for each row
+for index, row in df.iterrows():
+    for column in list(df.columns[0:7]):
+       if row[column] >= 6:
+           df.loc[index, 'No of Days >= 6'] += 1
+
+df['Day Difference'] = df['No of Days > 0'] - df['No of Days >= 6']
+
+df = df[['FullName', 'ID', 'Project', 'Team'] + list(df.columns[1:column_length-4]) + ['Total Hours', 'Regular Hours', 'Overtime Hours',
+                                                                    'No of Days > 0', 'No of Days >= 6',
+                                                                    'Day Difference']]
+# Write the DataFrame to Excel without formatting
+
+# Sort by 'FullName'
+df = df.sort_values(by='FullName')
+df.to_excel('FTP.xlsx', index=False)
+
+# Reopen the Excel file for formatting
+workbook = openpyxl.load_workbook('FTP.xlsx')
+worksheet = workbook.active
+
+# Autofit columns
+for column in worksheet.columns:
+    worksheet.column_dimensions['A'].width = 30
+    worksheet.column_dimensions[column[1].column_letter].auto_size = True
+
+# Save the formatted workbook
+workbook.save('FTP.xlsx')
+
+# Load data from Excel sheets
+df1 = pd.read_excel("FTP.xlsx")
+df2 = pd.read_excel("Mapping.xlsx")
+
+# Specify the required columns from each DataFrame
+required_columns_df1 = ["FullName", "ID", "Project", "Team", "Total Hours", "Regular Hours", "Overtime Hours"]  # Adjust as needed
+required_columns_df2 = ["ID", "SS ID"]
+
+# Extract only the required columns
+df1 = df1[required_columns_df1]
+df2 = df2[required_columns_df2]
+
+# Merge DataFrames based on common columns
+merged_df = df1.merge(df2, on="ID", how='left')  # Use 'inner' for intersection
+
+# Rearrange columns to the desired order
+merged_df = merged_df[["FullName", "SS ID", "ID", "Project", "Team", "Total Hours", "Regular Hours", "Overtime Hours"]]
+
+# Write the merged DataFrame to a new Excel sheet, including only extracted columns
+merged_df.to_excel("Jimmy_data.xlsx", index=False)
+print("Excel sheets merged successfully!")
+
+# Reopen the Excel file for formatting
+workbook = openpyxl.load_workbook('Jimmy_data.xlsx')
+worksheet = workbook.active
+
+# Autofit columns
+for column in worksheet.columns:
+    worksheet.column_dimensions[column[1].column_letter].auto_size = True
+
+worksheet.column_dimensions['A'].width = 30
+
+# Save the formatted workbook
+workbook.save('Jimmy_data.xlsx')
