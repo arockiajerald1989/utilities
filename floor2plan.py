@@ -12,7 +12,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 
 driver = webdriver.Chrome()
 
-url = "url"  # Replace with your desired URL
+url = "https://philly.floor2plan.com/Account/Login"  # Replace with your desired URL
 driver.get(url)
 driver.maximize_window()
 
@@ -21,8 +21,8 @@ username_field = driver.find_element(By.ID, "userName")
 password_field = driver.find_element(By.ID, "password")
 
 # Replace with your actual credentials
-username = "user"
-password = "pass"
+# username = "49772"
+# password = "234"
 
 # Enter username and password
 username_field.send_keys(username)
@@ -59,8 +59,8 @@ option.click()
 report_button = driver.find_elements(By.XPATH, "//input[@data-role='datepicker']")
 report_button[1].clear()
 report_button[2].clear()
-report_button[1].send_keys("01/08/2024")
-report_button[2].send_keys("01/14/2024")
+report_button[1].send_keys("02/19/2024")
+report_button[2].send_keys("02/25/2024")
 option = WebDriverWait(driver, 10).until(
     EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Generate']"))  # Replace with appropriate locator
 )
@@ -144,29 +144,15 @@ df['Regular Hours'] = df['Total Hours'].clip(upper=overtime_threshold)
 df['Overtime Hours'] = df['Total Hours'] - df['Regular Hours']
 
 # Add the 'No of Days' column
-df['No of Days > 0'] = 0
+df['No of Days >= 6.0'] = 0
 
 # Calculate the count of days for each row
 for index, row in df.iterrows():
-    for column in list(df.columns[0:7]):
-       if row[column] > 0:
-           df.loc[index, 'No of Days > 0'] += 1
+    for column in list(df.columns[1:8]):
+       if row[column] >= 6.0:
+           df.loc[index, 'No of Days >= 6.0'] += 1
 
-# Add the 'No of Days' column
-df['No of Days >= 6'] = 0
-
-# Calculate the count of days for each row
-for index, row in df.iterrows():
-    for column in list(df.columns[0:7]):
-       if row[column] >= 6:
-           df.loc[index, 'No of Days >= 6'] += 1
-
-df['Day Difference'] = df['No of Days > 0'] - df['No of Days >= 6']
-
-df = df[['FullName', 'ID', 'Project', 'Team'] + list(df.columns[1:column_length-4]) + ['Total Hours', 'Regular Hours', 'Overtime Hours',
-                                                                    'No of Days > 0', 'No of Days >= 6',
-                                                                    'Day Difference']]
-# Write the DataFrame to Excel without formatting
+df = df[['FullName', 'ID', 'Project', 'Team'] + list(df.columns[1:column_length-4]) + ['Total Hours', 'Regular Hours', 'Overtime Hours', 'No of Days >= 6.0']]
 
 # Sort by 'FullName'
 df = df.sort_values(by='FullName')
@@ -183,38 +169,3 @@ for column in worksheet.columns:
 
 # Save the formatted workbook
 workbook.save('FTP.xlsx')
-
-# Load data from Excel sheets
-df1 = pd.read_excel("FTP.xlsx")
-df2 = pd.read_excel("Mapping.xlsx")
-
-# Specify the required columns from each DataFrame
-required_columns_df1 = ["FullName", "ID", "Project", "Team", "Total Hours", "Regular Hours", "Overtime Hours"]  # Adjust as needed
-required_columns_df2 = ["ID", "SS ID"]
-
-# Extract only the required columns
-df1 = df1[required_columns_df1]
-df2 = df2[required_columns_df2]
-
-# Merge DataFrames based on common columns
-merged_df = df1.merge(df2, on="ID", how='left')  # Use 'inner' for intersection
-
-# Rearrange columns to the desired order
-merged_df = merged_df[["FullName", "SS ID", "ID", "Project", "Team", "Total Hours", "Regular Hours", "Overtime Hours"]]
-
-# Write the merged DataFrame to a new Excel sheet, including only extracted columns
-merged_df.to_excel("Jimmy_data.xlsx", index=False)
-print("Excel sheets merged successfully!")
-
-# Reopen the Excel file for formatting
-workbook = openpyxl.load_workbook('Jimmy_data.xlsx')
-worksheet = workbook.active
-
-# Autofit columns
-for column in worksheet.columns:
-    worksheet.column_dimensions[column[1].column_letter].auto_size = True
-
-worksheet.column_dimensions['A'].width = 30
-
-# Save the formatted workbook
-workbook.save('Jimmy_data.xlsx')
