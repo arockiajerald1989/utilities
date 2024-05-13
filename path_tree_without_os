@@ -63,3 +63,59 @@ path_tree = create_path_tree(folder_path)
 
 # Pretty print the path tree
 pprint.pprint({'devices': path_tree})
+
+
+
+
+import subprocess
+import pprint
+
+def list_directory(folder_path):
+    try:
+        # Execute the shell command to list directory contents
+        command = 'ls "{}"'.format(folder_path)  # Use ls command on macOS
+        print("Executing command:", command)  # Debug statement
+        output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT, text=True)
+        print("Output:", output)  # Debug statement
+
+        # Split output into lines and extract file/directory names
+        contents = output.splitlines()
+
+        return contents
+    except subprocess.CalledProcessError as e:
+        # Print the error message if the command fails
+        print("Error listing directory contents:", e)
+        return []  # Return empty list in case of error
+
+def create_path_tree(folder_path):
+    # Get the base name of the current directory
+    base_name = folder_path.rstrip("/").split("/")[-1]
+
+    # Initialize the path tree with base name as key
+    path_tree = {
+        'absolute_path': folder_path,
+        'files': [],
+        'directories': []
+    }
+
+    # Get the list of directory contents
+    contents = list_directory(folder_path)
+
+    # Iterate over the directory contents
+    for item in contents:
+        item_path = os.path.join(folder_path, item)
+        if os.path.isfile(item_path):
+            path_tree['files'].append(item)
+        elif os.path.isdir(item_path):
+            subdirectory_tree = create_path_tree(item_path)
+            path_tree['directories'].append({item: subdirectory_tree})
+
+    return path_tree
+
+# Example usage:
+folder_path = '/Users/YourUsername/PycharmProjects/path_tree/devices'  # Update with your actual path
+path_tree = create_path_tree(folder_path)
+
+# Pretty print the path tree
+pprint.pprint({'devices': path_tree})
+
