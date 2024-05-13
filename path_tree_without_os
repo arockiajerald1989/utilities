@@ -1,0 +1,65 @@
+import subprocess
+import pprint
+import os
+
+def list_directory(folder_path):
+    try:
+        # Execute the shell command to list directory contents
+        command = 'dir "{}" /B /A /S'.format(folder_path)  # /B for bare format, /A for displaying all files, /S for recursive listing
+        print("Executing command:", command)  # Debug statement
+        output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT, text=True)
+        print("Output:", output)  # Debug statement
+
+        # Split output into lines and extract file/directory names
+        contents = output.splitlines()
+
+        return contents
+    except subprocess.CalledProcessError as e:
+        # Print the error message if the command fails
+        print("Error listing directory contents:", e)
+        return []  # Return empty list in case of error
+
+# def create_path_tree(folder_path):
+#     # Get the base name of the current directory
+#     base_name = os.path.basename(folder_path)
+
+def create_path_tree(folder_path):
+    # Get the base name of the current directory
+    base_name = folder_path.rstrip("/").split("/")[-1]
+
+    # Initialize the path tree with base name as key
+    path_tree = {
+        'absolute_path': folder_path,
+        'files': [],
+        'directories': []
+    }
+
+    # Get the list of directory contents
+    contents = list_directory(folder_path)
+
+    # Iterate over the directory tree using os.walk()
+    for root, directories, files in os.walk(folder_path):
+        # Add files to the path tree
+        for file in files:
+            path_tree['files'].append(file)
+
+    # Create a list to store directories
+    directories_list = []
+    # Add directories to the path tree
+    for directory in os.listdir(folder_path):
+        subdirectory_path = os.path.join(folder_path, directory)
+        if os.path.isdir(subdirectory_path):
+            subdirectory_tree = create_path_tree(subdirectory_path)
+            directories_list.append({directory: subdirectory_tree})
+
+    # Add the list of directories to the path tree
+    path_tree['directories'] = directories_list
+
+    return path_tree
+
+# Example usage:
+folder_path = 'C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices'
+path_tree = create_path_tree(folder_path)
+
+# Pretty print the path tree
+pprint.pprint({'devices': path_tree})
