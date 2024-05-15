@@ -119,3 +119,225 @@ path_tree = create_path_tree(folder_path)
 # Pretty print the path tree
 pprint.pprint({'devices': path_tree})
 
+
+import unittest
+from unittest.mock import patch
+import os
+from your_module import list_directory, create_path_tree
+
+class TestPathTree(unittest.TestCase):
+
+    def setUp(self):
+        self.folder_path = '/test/folder/path'
+        self.file_names = ['file1.txt', 'file2.txt', 'file3.txt']
+        self.dir_names = ['dir1', 'dir2', 'dir3']
+
+    @patch('your_module.subprocess')
+    def test_list_directory_success(self, mock_subprocess):
+        # Mocking subprocess.check_output to return sample output
+        mock_subprocess.check_output.return_value = '\n'.join(self.file_names + self.dir_names)
+
+        contents = list_directory(self.folder_path)
+
+        self.assertEqual(contents, self.file_names + self.dir_names)
+
+        mock_subprocess.check_output.assert_called_once_with('ls "{}"'.format(self.folder_path), shell=True, stderr=-subprocess.STDOUT, text=True)
+
+    @patch('your_module.subprocess')
+    def test_list_directory_error(self, mock_subprocess):
+        # Mocking subprocess.check_output to raise CalledProcessError
+        mock_subprocess.check_output.side_effect = subprocess.CalledProcessError(1, 'ls', output='Permission denied')
+
+        contents = list_directory(self.folder_path)
+
+        self.assertEqual(contents, [])
+
+        mock_subprocess.check_output.assert_called_once_with('ls "{}"'.format(self.folder_path), shell=True, stderr=-subprocess.STDOUT, text=True)
+
+    @patch('your_module.os.path')
+    @patch('your_module.list_directory')
+    def test_create_path_tree_success(self, mock_list_directory, mock_os_path):
+        # Mocking list_directory to return sample file and directory names
+        mock_list_directory.return_value = self.file_names + self.dir_names
+
+        # Mocking os.path.isfile and os.path.isdir to mimic files and directories
+        mock_os_path.isfile.side_effect = lambda path: path.split('/')[-1] in self.file_names
+        mock_os_path.isdir.side_effect = lambda path: path.split('/')[-1] in self.dir_names
+
+        path_tree = create_path_tree(self.folder_path)
+
+        expected_tree = {
+            'absolute_path': self.folder_path,
+            'files': self.file_names,
+            'directories': [
+                {'dir1': {'absolute_path': '/test/folder/path/dir1', 'files': [], 'directories': []}},
+                {'dir2': {'absolute_path': '/test/folder/path/dir2', 'files': [], 'directories': []}},
+                {'dir3': {'absolute_path': '/test/folder/path/dir3', 'files': [], 'directories': []}}
+            ]
+        }
+
+        self.assertDictEqual(path_tree, expected_tree)
+
+        mock_list_directory.assert_called_once_with(self.folder_path)
+
+    @patch('your_module.list_directory')
+    def test_create_path_tree_empty_folder(self, mock_list_directory):
+        # Mocking list_directory to return an empty list
+        mock_list_directory.return_value = []
+
+        path_tree = create_path_tree(self.folder_path)
+
+        expected_tree = {
+            'absolute_path': self.folder_path,
+            'files': [],
+            'directories': []
+        }
+
+        self.assertDictEqual(path_tree, expected_tree)
+
+        mock_list_directory.assert_called_once_with(self.folder_path)
+
+    @patch('your_module.os.path')
+    @patch('your_module.list_directory')
+    def test_create_path_tree_nested_directories(self, mock_list_directory, mock_os_path):
+        # Mocking list_directory to return nested files and directories
+        mock_list_directory.side_effect = [
+            ['file1.txt', 'file2.txt', 'dir1'],
+            ['file3.txt'],
+            [],
+            []
+        ]
+
+        # Mocking os.path.isfile and os.path.isdir to mimic files and directories
+        mock_os_path.isfile.side_effect = lambda path: path.split('/')[-1] in ['file1.txt', 'file2.txt', 'file3.txt']
+        mock_os_path.isdir.side_effect = lambda path: path.split('/')[-1] == 'dir1'
+
+        path_tree = create_path_tree(self.folder_path)
+
+        expected_tree = {
+            'absolute_path': self.folder_path,
+            'files': ['file1.txt', 'file2.txt'],
+            'directories': [
+                {'dir1': {
+                    'absolute_path': '/test/folder/path/dir1',
+                    'files': ['file3.txt'],
+                    'directories': []
+                }}
+            ]
+        }
+
+        self.assertDictEqual(path_tree, expected_tree)
+
+        mock_list_directory.assert_called_with(self.folder_path)
+        self.assertEqual(mock_list_directory.call_count, 4)
+
+    @patch('your_module.os.path')
+    @patch('your_module.list_directory')
+    def test_create_path_tree_invalid_folder(self, mock_list_directory, mock_os_path):
+        # Mocking list_directory to return None (indicating folder doesn't exist)
+        mock_list_directory.return_value = None
+
+        path_tree = create_path_tree(self.folder_path)
+
+        expected_tree = {
+            'absolute_path': self.folder_path,
+            'files': [],
+            'directories': []
+        }
+
+        self.assertDictEqual(path_tree, expected_tree)
+
+        mock_list_directory.assert_called_once_with(self.folder_path)
+        mock_os_path.isfile.assert_not_called()
+        mock_os_path.isdir.assert_not_called()
+
+    @patch('your_module.os.path')
+    @patch('your_module.list_directory')
+    def test_create_path_tree_mixed_files_and_directories(self, mock_list_directory, mock_os_path):
+        # Mocking list_directory to return mixed files and directories
+        mock_list_directory.return_value = ['file1.txt', 'dir1', 'file2.txt']
+
+        # Mocking os.path.isfile and os.path.isdir to mimic files and directories
+        mock_os_path.isfile.side_effect = lambda path: path.split('/')[-1] == 'file1.txt' or path.split('/')[-1] == 'file2.txt'
+        mock_os_path.isdir.return_value = True
+
+        path_tree = create_path_tree(self.folder_path)
+
+        expected_tree = {
+            'absolute_path': self.folder_path,
+            'files': ['file1.txt', 'file2.txt'],
+            'directories': [{'dir1': {'absolute_path': '/test/folder/path/dir1', 'files': [], 'directories': []}}]
+        }
+
+        self.assertDictEqual(path_tree, expected_tree)
+
+        mock_list_directory.assert_called_once_with(self.folder_path)
+        self.assertEqual(mock_os_path.isfile.call_count, 2)
+        mock_os_path.isdir.assert_called_once_with('/test/folder/path/dir1')
+
+    @patch('your_module.os.path')
+    @patch('your_module.list_directory')
+    def test_create_path_tree_nested_files(self, mock_list_directory, mock_os_path):
+        # Mocking list_directory to return nested files
+        mock_list_directory.return_value = ['file1.txt', 'file2.txt', 'dir1']
+
+        # Mocking os.path.isfile and os.path.isdir to mimic files and directories
+        mock_os_path.isfile.side_effect = lambda path: path.split('/')[-1] == 'file1.txt' or path.split('/')[-1] == 'file2.txt'
+        mock_os_path.isdir.return_value = False
+
+        path_tree = create_path_tree(self.folder_path)
+
+        expected_tree = {
+            'absolute_path': self.folder_path,
+            'files': ['file1.txt', 'file2.txt'],
+            'directories': [{'dir1': {'absolute_path': '/test/folder/path/dir1', 'files': [], 'directories': []}}]
+        }
+
+        self.assertDictEqual(path_tree, expected_tree)
+
+        mock_list_directory.assert_called_once_with(self.folder_path)
+        self.assertEqual(mock_os_path.isfile.call_count, 2)
+        mock_os_path.isdir.assert_called_once_with('/test/folder/path/dir1')
+
+    @patch('your_module.os.path')
+    @patch('your_module.list_directory')
+    def test_create_path_tree_no_contents(self, mock_list_directory, mock_os_path):
+        # Mocking list_directory to return an empty list
+        mock_list_directory.return_value = []
+
+        # Mocking os.path.isfile and os.path.isdir to return False for any path
+        mock_os_path.isfile.return_value = False
+        mock_os_path.isdir.return_value = False
+
+        path_tree = create_path_tree(self.folder_path)
+
+        expected_tree = {
+            'absolute_path': self.folder_path,
+            'files': [],
+            'directories': []
+        }
+
+        self.assertDictEqual(path_tree, expected_tree)
+
+        mock_list_directory.assert_called_once_with(self.folder_path)
+        mock_os_path.isfile.assert_not_called()
+        mock_os_path.isdir.assert_not_called()
+
+if __name__ == '__main__':
+    unittest.main()
+
+
+In the provided code, the patch decorator from the unittest.mock module is used to mock certain functions or objects during the execution of the test cases. Mocking is a technique used in testing to replace parts of the system under test with mock objects that simulate the behavior of real objects.
+
+Let's break down the usage of patch in the code:
+
+Mocking External Dependencies: In the unit tests, the code interacts with external dependencies such as subprocess and os.path. These dependencies may have unpredictable behavior or may not be suitable for testing purposes. By using patch, the behavior of these dependencies can be controlled and simulated.
+
+Isolating Units: The purpose of unit testing is to test individual units of code in isolation. By using patch, the tests can focus on the behavior of specific functions (list_directory and create_path_tree in this case) without worrying about the behavior of their dependencies.
+
+Ensuring Deterministic Tests: Mocking allows the tests to have deterministic behavior by providing controlled responses from mocked objects. This ensures that the tests produce consistent results regardless of the external environment.
+
+Avoiding Side Effects: Mocking helps in avoiding side effects that may occur due to interactions with real external dependencies. For example, mocking subprocess.check_output prevents the actual execution of shell commands during testing, which may have unintended consequences.
+
+In summary, the patch decorator is used to replace objects or functions with mock versions, allowing for controlled and isolated testing of the code under specific conditions.
+
