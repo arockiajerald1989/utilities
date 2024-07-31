@@ -1,0 +1,317 @@
+{
+  "devices": {
+    "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices",
+    "directories": [
+      ["devices_1", "100MB"],
+      ["devices_2", "150MB"],
+      ["devices_3", "200MB"],
+      ["devices_4", "120MB"],
+      ["devices_5", "50MB"]
+    ],
+    "files": [
+      ["test_sample_202307301200", "20KB"],
+      ["test_data_202307301201", "30KB"],
+      ["test_config_202307301202", "10KB"]
+    ],
+    "devices_1": {
+      "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_1",
+      "directories": [
+        ["test_1", "50MB"],
+        ["test_2", "30MB"],
+        ["test_3", "20MB"]
+      ],
+      "files": [
+        ["readme_202307301203.md", "1KB"],
+        ["setup_202307301204.exe", "5MB"]
+      ],
+      "test_1": {
+        "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_1\\test_1",
+        "directories": [
+          ["subtest_1", "20MB"],
+          ["subtest_2", "10MB"]
+        ],
+        "files": [
+          ["sample_202307301205.txt", "5KB"],
+          ["data_202307301206.csv", "10KB"],
+          ["document_202307301301.pdf", "500KB"]
+        ],
+        "subtest_1": {
+          "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_1\\test_1\\subtest_1",
+          "directories": [
+            ["deep_subtest_1", "5MB"]
+          ],
+          "files": [
+            ["details_202307301207.log", "2KB"],
+            ["info_202307301208.json", "3KB"],
+            ["document_202307301302.pdf", "500KB"]
+          ],
+          "deep_subtest_1": {
+            "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_1\\test_1\\subtest_1\\deep_subtest_1",
+            "directories": [
+              ["level1_subtest", "1MB"]
+            ],
+            "files": [
+              ["deep_info_202307301209.txt", "1KB"],
+              ["document_202307301303.pdf", "500KB"]
+            ],
+            "level1_subtest": {
+              "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_1\\subtest_1\\deep_subtest_1\\level1_subtest",
+              "directories": [
+                ["level2_subtest", "1MB"]
+              ],
+              "files": [
+                ["level1_info_202307301210.txt", "1KB"],
+                ["document_202307301304.pdf", "500KB"]
+              ],
+              "level2_subtest": {
+                "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_1\\subtest_1\\deep_subtest_1\\level1_subtest\\level2_subtest",
+                "directories": [
+                  ["level3_subtest", "1MB"]
+                ],
+                "files": [
+                  ["level2_info_202307301211.txt", "1KB"],
+                  ["document_202307301305.pdf", "500KB"]
+                ],
+                "level3_subtest": {
+                  "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_1\\subtest_1\\deep_subtest_1\\level1_subtest\\level2_subtest\\level3_subtest",
+                  "directories": [
+                    ["level4_subtest", "1MB"]
+                  ],
+                  "files": [
+                    ["level3_info_202307301212.txt", "1KB"],
+                    ["document_202307301306.pdf", "500KB"]
+                  ],
+                  "level4_subtest": {
+                    "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_1\\subtest_1\\deep_subtest_1\\level1_subtest\\level2_subtest\\level3_subtest\\level4_subtest",
+                    "directories": [],
+                    "files": [
+                      ["level4_info_202307301213.txt", "1KB"],
+                      ["document_202307301307.pdf", "500KB"]
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "subtest_2": {
+          "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_1\\test_1\\subtest_2",
+          "directories": [],
+          "files": [
+            ["summary_202307301213.doc", "4KB"],
+            ["document_202307301308.pdf", "500KB"]
+          ]
+        }
+      },
+      "test_2": {
+        "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_1\\test_2",
+        "directories": [
+          ["subtest_1", "15MB"]
+        ],
+        "files": [
+          ["notes_202307301214.txt", "1KB"],
+          ["document_202307301309.pdf", "500KB"]
+        ],
+        "subtest_1": {
+          "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_1\\test_2\\subtest_1",
+          "directories": [],
+          "files": [
+            ["report_202307301215.docx", "2MB"],
+            ["document_202307301310.pdf", "500KB"]
+          ]
+        }
+      },
+      "test_3": {
+        "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_1\\test_3",
+        "directories": [],
+        "files": [
+          ["presentation_202307301216.pptx", "10MB"],
+          ["document_202307301311.pdf", "500KB"]
+        ]
+      }
+    },
+    "devices_2": {
+      "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_2",
+      "directories": [
+        ["test1", "75MB"],
+        ["test2", "75MB"]
+      ],
+      "files": [
+        ["test_202307301217", "8KB"],
+        ["document_202307301312.pdf", "500KB"]
+      ],
+      "test1": {
+        "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_2\\test1",
+        "directories": [
+          ["subtest1", "40MB"]
+        ],
+        "files": [
+          ["config_202307301218.yml", "2KB"],
+          ["document_202307301313.pdf", "500KB"]
+        ],
+        "subtest1": {
+          "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_2\\test1\\subtest1",
+          "directories": [],
+          "files": [
+            ["config_sub_202307301219.yml", "1KB"],
+            ["document_202307301314.pdf", "500KB"]
+          ]
+        }
+      },
+      "test2": {
+        "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_2\\test2",
+        "directories": [
+          ["inner_test", "30MB"],
+          ["inner_test2", "20MB"]
+        ],
+        "files": [
+          ["document_202307301220.pdf", "12KB"],
+          ["readme_202307301221.txt", "3KB"]
+        ],
+        "inner_test": {
+          "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_2\\test2\\inner_test",
+          "directories": [],
+          "files": [
+            ["inner_doc_202307301222.docx", "7KB"],
+            ["document_202307301315.pdf", "500KB"]
+          ]
+        },
+        "inner_test2": {
+          "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_2\\test2\\inner_test2",
+          "directories": [],
+          "files": [
+            ["inner_notes_202307301223.txt", "2KB"],
+            ["document_202307301316.pdf", "500KB"]
+          ]
+        }
+      }
+    },
+    "devices_3": {
+      "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_3",
+      "directories": [
+        ["testA", "80MB"],
+        ["testB", "120MB"],
+        ["testC", "100MB"]
+      ],
+      "files": [],
+      "testA": {
+        "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_3\\testA",
+        "directories": [],
+        "files": [
+          ["logfile_202307301224.log", "15KB"],
+          ["document_202307301317.pdf", "500KB"]
+        ]
+      },
+      "testB": {
+        "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_3\\testB",
+        "directories": [
+          ["subtestB", "60MB"],
+          ["subtestC", "30MB"]
+        ],
+        "files": [
+          ["image_202307301225.png", "5MB"],
+          ["document_202307301318.pdf", "500KB"]
+        ],
+        "subtestB": {
+          "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_3\\testB\\subtestB",
+          "directories": [],
+          "files": [
+            ["backup_202307301226.zip", "50MB"],
+            ["document_202307301319.pdf", "500KB"]
+          ]
+        },
+        "subtestC": {
+          "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_3\\testB\\subtestC",
+          "directories": [],
+          "files": [
+            ["video_202307301227.mp4", "20MB"],
+            ["document_202307301320.pdf", "500KB"]
+          ]
+        }
+      },
+      "testC": {
+        "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_3\\testC",
+        "directories": [],
+        "files": [
+          ["audio_202307301228.mp3", "10MB"],
+          ["document_202307301321.pdf", "500KB"]
+        ]
+      }
+    },
+    "devices_4": {
+      "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_4",
+      "directories": [
+        ["testX", "50MB"],
+        ["testY", "70MB"],
+        ["testZ", "40MB"]
+      ],
+      "files": [
+        ["summary_202307301229.docx", "2MB"],
+        ["document_202307301322.pdf", "500KB"]
+      ],
+      "testX": {
+        "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_4\\testX",
+        "directories": [],
+        "files": [
+          ["diagram_202307301230.svg", "1MB"],
+          ["document_202307301323.pdf", "500KB"]
+        ]
+      },
+      "testY": {
+        "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_4\\testY",
+        "directories": [
+          ["subtestY1", "30MB"],
+          ["subtestY2", "40MB"]
+        ],
+        "files": [
+          ["outline_202307301231.pptx", "3MB"],
+          ["document_202307301324.pdf", "500KB"]
+        ],
+        "subtestY1": {
+          "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_4\\testY\\subtestY1",
+          "directories": [],
+          "files": [
+            ["report_202307301232.pdf", "10MB"],
+            ["document_202307301325.pdf", "500KB"]
+          ]
+        },
+        "subtestY2": {
+          "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_4\\testY\\subtestY2",
+          "directories": [],
+          "files": [
+            ["data_202307301233.xlsx", "2MB"],
+            ["document_202307301326.pdf", "500KB"]
+          ]
+        }
+      },
+      "testZ": {
+        "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_4\\testZ",
+        "directories": [],
+        "files": [
+          ["script_202307301234.js", "500KB"],
+          ["document_202307301327.pdf", "500KB"]
+        ]
+      }
+    },
+    "devices_5": {
+      "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_5",
+      "directories": [
+        ["testD", "20MB"]
+      ],
+      "files": [
+        ["instructions_202307301235.txt", "1KB"],
+        ["changelog_202307301236.md", "5KB"],
+        ["document_202307301328.pdf", "500KB"]
+      ],
+      "testD": {
+        "absolute_path": "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices\\devices_5\\testD",
+        "directories": [],
+        "files": [
+          ["testD_file1_202307301237.txt", "2KB"],
+          ["testD_file2_202307301238.txt", "3KB"],
+          ["document_202307301329.pdf", "500KB"]
+        ]
+      }
+    }
+  }
+}
