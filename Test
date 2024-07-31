@@ -1,0 +1,57 @@
+import json
+import fnmatch
+
+# Define the search parameters
+search_paths = ["devices", "another_path"]  # List of search paths
+prefix_file_name = "document*"
+suffix_file_name = "*.pdf"
+
+# Load the JSON data from a file
+with open('path_tree.json', 'r') as file:
+    json_data = json.load(file)
+
+def search_files_recursively(node, prefix_pattern, suffix_pattern, current_path, matching_files):
+    # Check files at the current node
+    if 'files' in node:
+        for file in node['files']:
+            if fnmatch.fnmatch(file[0], prefix_pattern) and fnmatch.fnmatch(file[0], suffix_pattern):
+                absolute_file_path = current_path + "\\" + file[0]
+                matching_files.append((absolute_file_path, file[1]))
+
+    # Recursively search in child directories
+    if 'directories' in node:
+        for directory in node['directories']:
+            dir_name = directory[0]
+            if dir_name in node:
+                search_files_recursively(node[dir_name], prefix_pattern, suffix_pattern, current_path + "\\" + dir_name, matching_files)
+
+def find_node(data, path):
+    if path in data:
+        return data[path]
+    for k, v in data.items():
+        if isinstance(v, dict):
+            result = find_node(v, path)
+            if result:
+                return result
+    return None
+
+def search_directory(data, search_path, prefix_pattern, suffix_pattern):
+    root = find_node(data, search_path)
+    if root:
+        matching_files = []
+        search_files_recursively(root, prefix_pattern, suffix_pattern, root['absolute_path'], matching_files)
+        return matching_files
+    else:
+        return []
+
+# Initialize an empty list to collect results from all search paths
+all_matching_files = []
+
+# Loop through each path in the search_paths list and perform the search
+for path in search_paths:
+    matching_files = search_directory(json_data, path, prefix_file_name, suffix_file_name)
+    all_matching_files.extend(matching_files)
+
+# Print results from all search paths
+for file_path, file_size in all_matching_files:
+    print(f"File: {file_path}, Size: {file_size}")
