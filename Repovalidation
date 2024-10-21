@@ -1,4 +1,96 @@
 import json
+import re
+
+class JSONValidator:
+    def __init__(self, json_input):
+        self.json_input = json_input
+        self.data = None
+
+    # Function to load the JSON
+    def load_json(self):
+        try:
+            self.data = json.loads(self.json_input)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON format: {str(e)}")
+
+    # Function to validate the top-level structure and repositories
+    def validate_json(self):
+        self.load_json()
+
+        repositories = self.data.get('repositories', None)
+        if not isinstance(repositories, list) or len(repositories) == 0:
+            raise ValueError("Invalid JSON structure: 'repositories' field is missing or not a non-empty list.")
+
+        # Loop through repositories and validate them
+        for index, repo in enumerate(repositories):
+            self.validate_repository(repo, index)
+
+        return self.data
+
+    # Function to validate each repository entry
+    def validate_repository(self, repo, index):
+        # Validate that it's a dictionary
+        if not isinstance(repo, dict):
+            raise ValueError(f"Invalid repository entry at index {index}: Each repository must be an object. Found: {type(repo)}")
+
+        # Validate that it only contains 'name' and 'branch' fields
+        valid_keys = {'name', 'branch'}
+        if set(repo.keys()) != valid_keys:
+            raise ValueError(f"Invalid repository at index {index}: Unexpected keys found. Only 'name' and 'branch' are allowed.")
+
+        # Validate the 'name' and 'branch' fields
+        if not isinstance(repo['name'], str) or not isinstance(repo['branch'], str):
+            raise ValueError(f"Invalid repository at index {index}: 'name' and 'branch' must be strings.")
+
+        # Strip once and validate
+        name = repo['name'].strip()
+        branch = repo['branch'].strip()
+
+        if not name:
+            raise ValueError(f"Invalid repository name at index {index}: Repository 'name' must be a non-empty string.")
+        
+        if not branch:
+            raise ValueError(f"Invalid branch name at index {index}: Repository 'branch' must be a non-empty string.")
+
+        # Additional regex validation for branch names (optional)
+        branch_regex = r"^[a-zA-Z0-9\-_/]+$"
+        if not re.match(branch_regex, branch):
+            raise ValueError(f"Invalid branch name at index {index}: '{branch}' contains invalid characters.")
+
+# Example usage
+json_input = '''
+{
+  "repositories": [
+    {
+      "name": "repo1",
+      "branch": "main"
+    },
+    {
+      "name": "repo2",
+      "branch": "develop"
+    },
+    {
+      "name": "repo3",
+      "branch": "feature/new-feature"
+    }
+  ]
+}
+'''
+
+# To test invalid cases, replace the json_input with invalid structures as before
+
+validator = JSONValidator(json_input)
+
+# Validate the JSON
+try:
+    valid_data = validator.validate_json()
+    print("JSON is valid and well-formed:", valid_data)
+except ValueError as e:
+    print(e)
+
+
+
+import json
 
 class JSONValidator:
     def __init__(self, json_input):
