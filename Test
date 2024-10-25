@@ -14,24 +14,6 @@ from datetime import datetime
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
-# Create handlers: one for console and one for file
-console_handler = logging.StreamHandler()
-file_handler = logging.FileHandler('git_repository_manager.log')
-
-# Set level for handlers
-console_handler.setLevel(logging.INFO)  # Only show INFO and higher in console
-file_handler.setLevel(logging.DEBUG)  # Capture DEBUG and higher in log file
-
-# Define log format
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - [%(threadName)s] - %(message)s')
-
-# Add formatters to handlers
-console_handler.setFormatter(formatter)
-file_handler.setFormatter(formatter)
-
-# Add handlers to the logger
-log.addHandler(console_handler)
-log.addHandler(file_handler)
 
 class GitRepositoryManager:
     """
@@ -45,12 +27,32 @@ class GitRepositoryManager:
         retries (int): Number of retries for a command upon failure.
     """
 
-    def __init__(self, log_level=logging.INFO, timeout=120, retries=3):
+    def __init__(self, log_level=logging.INFO, timeout=120, retries=3, log_file='git_repository_manager.log'):
         self.repo_locks = {}
         self.repo_lock_global = Lock()
         self.timeout = timeout
         self.retries = retries
+        self.processed_repos = set()  # Track already processed repositories
         log.setLevel(log_level)
+
+        # Create handlers: one for console and one for file
+        console_handler = logging.StreamHandler()
+        file_handler = logging.FileHandler(log_file)
+
+        # Set level for handlers
+        console_handler.setLevel(logging.INFO)  # Only show INFO and higher in console
+        file_handler.setLevel(logging.DEBUG)  # Capture DEBUG and higher in log file
+
+        # Define log format
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - [%(threadName)s] - %(message)s')
+
+        # Add formatters to handlers
+        console_handler.setFormatter(formatter)
+        file_handler.setFormatter(formatter)
+
+        # Add handlers to the logger
+        log.addHandler(console_handler)
+        log.addHandler(file_handler)
 
     def run_command(self, cmd, cwd=None, timeout=None):
         """
@@ -72,15 +74,16 @@ class GitRepositoryManager:
         while attempt < self.retries:
             try:
                 log.debug(f"Running command: {cmd} in {cwd}")
-                with subprocess.Popen(shlex.split(cmd), cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
-                    stdout, stderr = process.communicate()
+                with subprocess.Popen(shlex.split(cmd), cwd=cwd, stdout=subprocess.PIPE,
+                                      stderr=subprocess.PIPE) as process:
+                    stdout, stderr = process.communicate(timeout=timeout)
                     if process.returncode != 0:
                         raise subprocess.CalledProcessError(process.returncode, cmd, stderr)
                 log.debug(f"Command output: {stdout.decode().strip()}")
                 return stdout.decode().strip()
             except subprocess.CalledProcessError as e:
                 error_message = e.stderr.decode().strip()
-                log.error(f"Command failed: {error_message}")
+                log.error(f"Command failed: {error_message} (Attempt {attempt + 1}/{self.retries})")
                 if "fatal" in error_message.lower():
                     raise RuntimeError(f"Fatal error during execution: {cmd}")
             except subprocess.TimeoutExpired:
@@ -107,7 +110,9 @@ class GitRepositoryManager:
         try:
             return self.run_command("git symbolic-ref --short HEAD", cwd=repo_path)
         except RuntimeError:
-            return self.run_command("git rev-parse --short HEAD", cwd=repo_path)
+            detached_head = self.run_command("git rev-parse --short HEAD", cwd=repo_path)
+            log.info(f"Repository {repo_path} is in detached HEAD state. Current commit: {detached_head}")
+            return detached_head
 
     def is_up_to_date(self, repo_path):
         """
@@ -189,7 +194,8 @@ class GitRepositoryManager:
         log.debug(f"Submodule status for {repo_path}: {status_output}")
 
         log.info(f"Updating submodules for {repo_path}")
-        self.run_command("git submodule update --init --recursive --jobs 4", cwd=repo_path)
+        with ThreadPoolExecutor(max_workers=4) as executor:  # Parallelize submodule updates
+            executor.submit(self.run_command, "git submodule update --init --recursive --jobs 4", cwd=repo_path)
         log.info(f"Submodules initialized and updated for {repo_path}")
 
         return True
@@ -240,10 +246,18 @@ class GitRepositoryManager:
         branch = repo['branch']
         repo_name = repo_url.split('/')[-1].replace('.git', '')
         timeout = repo.get('timeout', self.timeout)  # Allow per-repository timeout
+        retries = repo.get('retries', self.retries)  # Allow per-repository retries
+
+        if repo_name in self.processed_repos:  # Skip already processed repositories
+            log.info(f"Repository {repo_name} already processed. Skipping.")
+            return
+
         log.info(f"Processing repository: {repo_name} (branch: {branch})")
         self.clone_repository(repo_url, repo_name, branch)
         self.checkout_and_pull(repo_name, branch)
         self.initialize_submodules(repo_name)
+
+        self.processed_repos.add(repo_name)  # Mark the repository as processed
 
     def process_all_repositories(self, json_file):
         """
@@ -285,5 +299,5 @@ class GitRepositoryManager:
 
 
 if __name__ == "__main__":
-    manager = GitRepositoryManager(log_level=logging.DEBUG, timeout=120, retries=3)
+    manager = GitRepositoryManager(log_level=logging.DEBUG, timeout=120, retries=3, log_file='git_repo_manager.log')
     manager.process_all_repositories('repositories.json')
