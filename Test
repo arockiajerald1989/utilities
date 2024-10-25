@@ -2,7 +2,7 @@ import subprocess
 import json
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from threading import RLock, Lock
+from threading import RLock, Lock, Thread
 import logging
 import multiprocessing
 import time
@@ -10,9 +10,47 @@ import shlex
 import shutil
 from datetime import datetime
 
-# Set up logging with timestamp format
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Set up logging to log to both console and file
 log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
+
+# Create handlers: one for console and one for file
+console_handler = logging.StreamHandler()
+file_handler = logging.FileHandler('git_repository_manager.log')
+
+# Set level for handlers
+console_handler.setLevel(logging.INFO)  # Only show INFO and higher in console
+file_handler.setLevel(logging.DEBUG)  # Capture DEBUG and higher in log file
+
+# Define log format
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - [%(threadName)s] - %(message)s')
+
+# Add formatters to handlers
+console_handler.setFormatter(formatter)
+file_handler.setFormatter(formatter)
+
+# Add handlers to the logger
+log.addHandler(console_handler)
+log.addHandler(file_handler)
+
+class CustomThreadFactory:
+    """
+    A custom thread factory to name threads in the thread pool based on task.
+    """
+    def __init__(self, name_prefix):
+        self.name_prefix = name_prefix
+        self.thread_count = 0
+        self.lock = Lock()
+
+    def new_thread(self, task):
+        """
+        Creates a new thread with a custom name.
+        """
+        with self.lock:
+            thread_name = f"{self.name_prefix}-{self.thread_count}"
+            self.thread_count += 1
+        return Thread(target=task, name=thread_name)
+
 
 class GitRepositoryManager:
     """
@@ -163,10 +201,18 @@ class GitRepositoryManager:
             bool: True if submodules were initialized, False otherwise.
         """
         if not os.path.exists(os.path.join(repo_path, '.gitmodules')):
+            log.info(f"No submodules to initialize in {repo_path}")
             return False
-        if self.run_command("git submodule status", cwd=repo_path):
-            log.info(f"Initializing submodules for {repo_path}")
-            self.run_command("git submodule update --init --recursive --jobs 4", cwd=repo_path)
+
+        log.info(f"Initializing submodules for {repo_path}")
+        log.debug(f"Checking submodule status in {repo_path}")
+        status_output = self.run_command("git submodule status", cwd=repo_path)
+        log.debug(f"Submodule status for {repo_path}: {status_output}")
+
+        log.info(f"Updating submodules for {repo_path}")
+        self.run_command("git submodule update --init --recursive --jobs 4", cwd=repo_path)
+        log.info(f"Submodules initialized and updated for {repo_path}")
+
         return True
 
     def update_submodule(self, repo_path, submodule, branch="main"):
@@ -180,16 +226,29 @@ class GitRepositoryManager:
         """
         submodule_path = os.path.join(repo_path, submodule.split()[1])
         lock_file = os.path.join(repo_path, f".git/modules/{submodule_path}/index.lock")
+
+        log.info(f"Checking and updating submodule {submodule} in {repo_path}")
+
         with self._get_repo_lock(submodule_path):
             if os.path.exists(lock_file):
+                log.info(f"Removing lock file {lock_file}")
                 os.remove(lock_file)
+
             if not os.path.isdir(os.path.join(submodule_path, ".git")):
+                log.warning(f"Submodule directory {submodule_path} is missing, forcing reinitialization")
                 shutil.rmtree(submodule_path, ignore_errors=True)
                 self.run_command("git submodule update --init --recursive --force", cwd=repo_path)
+
+            log.debug(f"Fetching remote branches for submodule {submodule} in {repo_path}")
             if self.run_command(f"git ls-remote --heads origin {branch}", cwd=submodule_path):
+                log.info(f"Checking out branch {branch} for submodule {submodule}")
                 self.run_command(f"git checkout {branch}", cwd=submodule_path)
+
             if not self.is_up_to_date(submodule_path):
+                log.info(f"Pulling latest changes for submodule {submodule} on branch {branch}")
                 self.run_command(f"git pull origin {branch}", cwd=submodule_path)
+            else:
+                log.info(f"Submodule {submodule} is already up to date on branch {branch}")
 
     def process_repository(self, repo):
         """
@@ -218,7 +277,10 @@ class GitRepositoryManager:
             repositories = json.load(f)['repositories']
         max_workers = min(32, multiprocessing.cpu_count())
         failed_repos = []  # Track repositories that fail processing
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+
+        thread_factory = CustomThreadFactory("RepoWorker")  # Create custom thread factory
+
+        with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="RepoWorker") as executor:
             futures = [executor.submit(self.process_repository, repo) for repo in repositories]
             for future in as_completed(futures):
                 try:
@@ -246,5 +308,5 @@ class GitRepositoryManager:
 
 
 if __name__ == "__main__":
-    manager = GitRepositoryManager(log_level=logging.INFO, timeout=120, retries=3)
+    manager = GitRepositoryManager(log_level=logging.DEBUG, timeout=120, retries=3)
     manager.process_all_repositories('repositories.json')
