@@ -1,3 +1,51 @@
+def run_command(self, cmd, cwd=None, timeout=None):
+    """
+    Execute a shell command with retry logic, exponential backoff, and logging.
+
+    Args:
+        cmd (str): The command to execute.
+        cwd (str, optional): Directory where the command will run.
+        timeout (int, optional): Specific timeout for the command.
+
+    Returns:
+        str: Standard output of the command as a string.
+
+    Raises:
+        RuntimeError: If the command fails after all retry attempts.
+    """
+    attempt, backoff = 0, 1
+    timeout = timeout or self.timeout
+    while attempt < self.retries:
+        try:
+            log.debug(f"Running command: {cmd} in {cwd}")
+            with subprocess.Popen(shlex.split(cmd), cwd=cwd, stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE) as process:
+                stdout, stderr = process.communicate(timeout=timeout)
+                
+                # Ensure stdout and stderr are decoded only if they are not None
+                stdout = stdout.decode().strip() if stdout else ""
+                stderr = stderr.decode().strip() if stderr else ""
+
+                if process.returncode != 0:
+                    raise subprocess.CalledProcessError(process.returncode, cmd, stderr)
+                
+                log.debug(f"Command output: {stdout}")
+                return stdout
+        except subprocess.CalledProcessError as e:
+            log.error(f"Command failed: {e.stderr} (Attempt {attempt + 1}/{self.retries})")
+            if "fatal" in e.stderr.lower():
+                raise RuntimeError(f"Fatal error during execution: {cmd}")
+        except subprocess.TimeoutExpired:
+            log.error(f"Command timed out: {cmd} in {cwd}")
+        attempt += 1
+        if attempt >= self.retries:
+            raise RuntimeError(f"Command failed after {self.retries} attempts: {cmd}")
+        time.sleep(backoff)
+        backoff *= 2
+
+
+
+
 def initialize_submodules(self, repo_path):
     """
     Initialize and update each submodule concurrently if they have changed since the last check.
