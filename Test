@@ -2,7 +2,7 @@ import subprocess
 import json
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from threading import RLock, Lock, Thread
+from threading import RLock, Lock
 import logging
 import multiprocessing
 import time
@@ -32,25 +32,6 @@ file_handler.setFormatter(formatter)
 # Add handlers to the logger
 log.addHandler(console_handler)
 log.addHandler(file_handler)
-
-class CustomThreadFactory:
-    """
-    A custom thread factory to name threads in the thread pool based on task.
-    """
-    def __init__(self, name_prefix):
-        self.name_prefix = name_prefix
-        self.thread_count = 0
-        self.lock = Lock()
-
-    def new_thread(self, task):
-        """
-        Creates a new thread with a custom name.
-        """
-        with self.lock:
-            thread_name = f"{self.name_prefix}-{self.thread_count}"
-            self.thread_count += 1
-        return Thread(target=task, name=thread_name)
-
 
 class GitRepositoryManager:
     """
@@ -91,15 +72,12 @@ class GitRepositoryManager:
         while attempt < self.retries:
             try:
                 log.debug(f"Running command: {cmd} in {cwd}")
-                process = subprocess.run(
-                    shlex.split(cmd),
-                    check=True,
-                    cwd=cwd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    timeout=timeout
-                )
-                return process.stdout.decode().strip()
+                with subprocess.Popen(shlex.split(cmd), cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
+                    stdout, stderr = process.communicate()
+                    if process.returncode != 0:
+                        raise subprocess.CalledProcessError(process.returncode, cmd, stderr)
+                log.debug(f"Command output: {stdout.decode().strip()}")
+                return stdout.decode().strip()
             except subprocess.CalledProcessError as e:
                 error_message = e.stderr.decode().strip()
                 log.error(f"Command failed: {error_message}")
@@ -158,7 +136,8 @@ class GitRepositoryManager:
             branch (str): Branch to clone.
             depth (int, optional): Depth of the clone for shallow cloning.
         """
-        if not os.path.exists(repo_name):
+        repo_git_path = os.path.join(repo_name, ".git")
+        if not os.path.exists(repo_git_path):
             log.info(f"Cloning {repo_url} (branch: {branch})")
             depth_arg = f"--depth {depth}" if depth else ""
             try:
@@ -277,8 +256,6 @@ class GitRepositoryManager:
             repositories = json.load(f)['repositories']
         max_workers = min(32, multiprocessing.cpu_count())
         failed_repos = []  # Track repositories that fail processing
-
-        thread_factory = CustomThreadFactory("RepoWorker")  # Create custom thread factory
 
         with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="RepoWorker") as executor:
             futures = [executor.submit(self.process_repository, repo) for repo in repositories]
