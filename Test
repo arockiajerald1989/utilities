@@ -8,17 +8,26 @@ import multiprocessing
 import time
 import shlex
 import shutil
+from datetime import datetime
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
+# Set up logging with timestamp format
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 log = logging.getLogger(__name__)
 
 
 class GitRepositoryManager:
+    """
+    A class to manage multiple Git repositories, including cloning, checking out branches,
+    pulling updates, and handling submodules with concurrency support.
+
+    Attributes:
+        repo_locks (dict): Dictionary of repository paths with their corresponding RLocks.
+        repo_lock_global (Lock): A global lock to manage access to the repo_locks dictionary.
+        timeout (int): Maximum time in seconds allowed for a command before timeout.
+        retries (int): Number of retries for a command upon failure.
+    """
+
     def __init__(self, log_level=logging.INFO, timeout=120, retries=3):
-        """
-        Initialize locks for thread safety and set log level, timeout, and retries.
-        """
         self.repo_locks = {}
         self.repo_lock_global = Lock()
         self.timeout = timeout
@@ -27,75 +36,93 @@ class GitRepositoryManager:
 
     def run_command(self, cmd, cwd=None):
         """
-        Run a shell command with retries and exponential backoff, including handling timeouts.
-        """
-        attempt = 0
-        backoff = 1
+        Run a shell command with retries and exponential backoff.
 
+        Args:
+            cmd (str): Command to execute.
+            cwd (str, optional): Directory to run the command in.
+
+        Returns:
+            str: Standard output from the command.
+
+        Raises:
+            RuntimeError: If the command fails after the specified retries.
+        """
+        attempt, backoff = 0, 1
         while attempt < self.retries:
             try:
                 log.debug(f"Running command: {cmd} in {cwd}")
-                process = subprocess.run(shlex.split(cmd), check=True, cwd=cwd, stdout=subprocess.PIPE,
-                                         stderr=subprocess.PIPE, timeout=self.timeout)
-                output = process.stdout.decode().strip()
-                log.info(f"Successfully executed command: {cmd} on attempt {attempt + 1}")
-                return output
+                process = subprocess.run(
+                    shlex.split(cmd),
+                    check=True,
+                    cwd=cwd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=self.timeout
+                )
+                return process.stdout.decode().strip()
             except subprocess.CalledProcessError as e:
                 error_message = e.stderr.decode().strip()
-                log.error(f"Command failed with error: {error_message} (Command: {cmd})")
-
-                # Retry on transient errors (network issues, timeouts), but fail on fatal errors
+                log.error(f"Command failed: {error_message}")
                 if "fatal" in error_message.lower():
-                    log.error(f"Fatal error occurred: {error_message}. Aborting retries.")
                     raise RuntimeError(f"Fatal error during execution: {cmd}")
-            except subprocess.TimeoutExpired as e:
-                log.error(f"Command timed out: {cmd} in {cwd}. Attempt {attempt + 1} of {self.retries}")
-
+            except subprocess.TimeoutExpired:
+                log.error(f"Command timed out: {cmd} in {cwd}")
             attempt += 1
             if attempt >= self.retries:
-                log.error(f"Command failed after {self.retries} attempts: {cmd}")
                 raise RuntimeError(f"Command failed after {self.retries} attempts: {cmd}")
-            else:
-                log.info(f"Retrying command after {backoff} seconds (attempt {attempt + 1}/{self.retries})...")
-                time.sleep(backoff)
-                backoff *= 2
+            log.info(f"Retrying command after {backoff} seconds (Attempt {attempt}/{self.retries})...")
+            time.sleep(backoff)
+            backoff *= 2
 
     def get_current_branch(self, repo_path):
-        """Get the current branch or commit hash if in detached HEAD."""
-        try:
-            cmd = "git symbolic-ref --short HEAD"
-            return self.run_command(cmd, cwd=repo_path)
-        except RuntimeError:
-            log.warning(f"Detached HEAD state in {repo_path}. Falling back to commit hash.")
-            cmd = "git rev-parse --short HEAD"
-            return self.run_command(cmd, cwd=repo_path)
+        """
+        Retrieve the current branch of a repository.
 
-    def is_up_to_date(self, repo_path, branch):
-        """
-        Check if the repository or submodule is up to date with its upstream.
+        Args:
+            repo_path (str): Path to the repository.
+
+        Returns:
+            str: Current branch name or commit hash if detached.
         """
         try:
-            local_commit = self.run_command("git rev-parse @", cwd=repo_path)
-            upstream_commit = self.run_command("git rev-parse @{u}", cwd=repo_path)
-            return local_commit == upstream_commit
+            return self.run_command("git symbolic-ref --short HEAD", cwd=repo_path)
+        except RuntimeError:
+            return self.run_command("git rev-parse --short HEAD", cwd=repo_path)
+
+    def is_up_to_date(self, repo_path):
+        """
+        Check if the repository is up-to-date with its remote.
+
+        Args:
+            repo_path (str): Path to the repository.
+
+        Returns:
+            bool: True if the repository is up-to-date, False otherwise.
+        """
+        try:
+            return self.run_command("git rev-parse @", cwd=repo_path) == self.run_command("git rev-parse @{u}",
+                                                                                          cwd=repo_path)
         except subprocess.CalledProcessError as e:
-            if "no upstream" in e.stderr.decode():
-                log.warning(f"No upstream configured for {branch} in {repo_path}")
-            else:
-                log.warning(f"Failed to check upstream status for {branch}: {e.stderr.decode().strip()}")
+            log.warning(e.stderr.decode().strip())
             return False
 
     def clone_repository(self, repo_url, repo_name, branch, depth=1):
         """
-        Clone the repository if it doesn't exist, with shallow cloning by default (--depth 1).
+        Clone a Git repository if it does not already exist locally.
+
+        Args:
+            repo_url (str): URL of the repository.
+            repo_name (str): Local name of the repository.
+            branch (str): Branch to clone.
+            depth (int, optional): Depth of the clone for shallow cloning.
         """
         if not os.path.exists(repo_name):
-            log.info(f"Cloning the repository: {repo_url} (branch: {branch})")
+            log.info(f"Cloning {repo_url} (branch: {branch})")
             depth_arg = f"--depth {depth}" if depth else ""
             try:
                 self.run_command(f"git clone {depth_arg} --branch {branch} --single-branch {repo_url}")
             except RuntimeError:
-                log.error(f"Clone failed for {repo_name}. Removing directory and retrying...")
                 shutil.rmtree(repo_name, ignore_errors=True)
                 raise
         else:
@@ -103,182 +130,98 @@ class GitRepositoryManager:
 
     def checkout_and_pull(self, repo_path, branch):
         """
-        Checkout and pull the branch if not up to date, using locks for thread safety.
+        Check out a branch in the repository and pull the latest changes if not up-to-date.
+
+        Args:
+            repo_path (str): Path to the repository.
+            branch (str): Branch to check out.
         """
         with self._get_repo_lock(repo_path):
-            current_branch = self.get_current_branch(repo_path)
-            if "detached" in current_branch or current_branch != branch:
-                log.info(f"Checking out branch {branch} in {repo_path} (currently on {current_branch})")
+            if self.get_current_branch(repo_path) != branch:
                 self.run_command(f"git checkout {branch}", cwd=repo_path)
-
-            if not self.is_up_to_date(repo_path, branch):
-                log.info(f"Pulling latest changes for branch {branch} in {repo_path}")
+            if not self.is_up_to_date(repo_path):
                 self.run_command(f"git pull origin {branch}", cwd=repo_path)
-            else:
-                log.info(f"Branch {branch} in {repo_path} is up to date. Skipping pull.")
 
     def initialize_submodules(self, repo_path):
         """
-        Initialize and update submodules in parallel. Handles submodules based on .gitmodules file.
+        Initialize and update submodules of a repository if present.
+
+        Args:
+            repo_path (str): Path to the repository.
+
+        Returns:
+            bool: True if submodules were initialized, False otherwise.
         """
-        submodule_config = os.path.join(repo_path, '.gitmodules')
-        if not os.path.exists(submodule_config):
-            log.info(f"No submodules found in {repo_path}.")
+        if not os.path.exists(os.path.join(repo_path, '.gitmodules')):
             return False
-
-        # Initialize all submodules without shallow cloning to ensure complete history
-        self.run_command("git submodule init", cwd=repo_path)
         self.run_command("git submodule update --init --recursive --jobs 4", cwd=repo_path)
-        log.info(f"Submodules initialized for {repo_path}")
-
-        # Get list of submodules to update
-        submodules = self.run_command("git submodule status --recursive", cwd=repo_path).splitlines()
-
-        # Process each submodule independently with a lock for thread safety
-        max_workers = min(4, multiprocessing.cpu_count())
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = [executor.submit(self.update_submodule, repo_path, submodule) for submodule in submodules]
-            for future in as_completed(futures):
-                try:
-                    future.result()  # Ensure each submodule update completes
-                except Exception as e:
-                    log.error(f"Error updating submodule in {repo_path}: {e}")
-
         return True
 
-    def remove_lock_file(self, lock_file):
-        """Remove the specified lock file if it exists."""
-        if os.path.exists(lock_file):
-            log.warning(f"Removing stale lock file: {lock_file}")
-            try:
-                os.remove(lock_file)
-            except OSError as e:
-                log.error(f"Error removing lock file {lock_file}: {e}")
-                raise
-
     def update_submodule(self, repo_path, submodule, branch="main"):
-        """Update a specific submodule, ensuring it's checked out to a branch."""
-        submodule_parts = submodule.split()
-        if len(submodule_parts) < 2:
-            log.error(f"Invalid submodule format: {submodule}. Skipping.")
-            return
-        submodule_path = submodule_parts[1]
-        submodule_full_path = os.path.join(repo_path, submodule_path)
+        """
+        Update a specific submodule to the latest version on a specified branch.
 
-        # Get the path to the lock file
+        Args:
+            repo_path (str): Path to the repository.
+            submodule (str): Name of the submodule.
+            branch (str): Branch to update the submodule to.
+        """
+        submodule_path = os.path.join(repo_path, submodule.split()[1])
         lock_file = os.path.join(repo_path, f".git/modules/{submodule_path}/index.lock")
-
-        # Remove stale lock file before starting operations
         if os.path.exists(lock_file):
-            log.warning(f"Removing stale lock file before proceeding: {lock_file}")
-            self.remove_lock_file(lock_file)
-
-        # Check if the submodule directory is not a valid git repository
-        if not os.path.isdir(os.path.join(submodule_full_path, ".git")):
-            log.error(f"{submodule_full_path} is not a git repository. Attempting to reinitialize.")
-
-            # Ensure lock file is removed before proceeding
-            with self._get_repo_lock(submodule_full_path):
-                self.remove_lock_file(lock_file)
-
-            # Clean up any stale submodule directories
-            if os.path.exists(submodule_full_path):
-                shutil.rmtree(submodule_full_path, ignore_errors=True)
-
-            # Retry logic to reinitialize the submodule
-            retry_count = 0
-            while retry_count < self.retries:
-                try:
-                    self.run_command("git submodule update --init --recursive --force", cwd=repo_path)
-                    if not os.path.isdir(os.path.join(submodule_full_path, ".git")):
-                        log.error(f"Failed to initialize {submodule_path} as a valid Git repository. Skipping.")
-                        return
-                    break  # Success: Exit retry loop
-                except RuntimeError as e:
-                    log.error(f"Error executing command: {e}. Retrying after a short delay.")
-                    time.sleep(2 + retry_count)  # Delay between retries
-                    retry_count += 1
-
-                    # Attempt to remove the lock file before retrying
-                    with self._get_repo_lock(submodule_full_path):
-                        self.remove_lock_file(lock_file)
-
-                if retry_count >= self.retries:
-                    log.error(
-                        f"Failed to initialize submodule {submodule_path} after {self.retries} retries. Skipping.")
-                    return
-
-        # After retries, ensure we can lock and update the submodule
-        with self._get_repo_lock(submodule_full_path):
-            log.info(f"Processing submodule at {submodule_full_path}")
-            try:
-                # Check if the branch exists on the remote
-                branch_exists = self.run_command(f"git ls-remote --heads origin {branch}", cwd=submodule_full_path)
-                if not branch_exists:
-                    log.warning(f"Branch {branch} does not exist in {submodule_path}. Staying on current branch.")
-                    branch = self.get_current_branch(submodule_full_path)
-
-                # Check if we're on the correct branch and update if necessary
-                current_branch = self.get_current_branch(submodule_full_path)
-                if "detached" not in current_branch and current_branch != branch:
-                    self.run_command(f"git checkout {branch}", cwd=submodule_full_path)
-
-                # Ensure the submodule is up to date
-                if not self.is_up_to_date(submodule_full_path, branch):
-                    log.info(f"Pulling latest changes for submodule {submodule_full_path} on branch {branch}")
-                    self.run_command(f"git pull origin {branch}", cwd=submodule_full_path)
-                else:
-                    log.info(f"Submodule {submodule_full_path} is up to date.")
-
-            except Exception as e:
-                log.error(f"Failed to update submodule {submodule_path} in {repo_path}: {e}")
+            os.remove(lock_file)
+        if not os.path.isdir(os.path.join(submodule_path, ".git")):
+            shutil.rmtree(submodule_path, ignore_errors=True)
+            self.run_command("git submodule update --init --recursive --force", cwd=repo_path)
+        with self._get_repo_lock(submodule_path):
+            if self.run_command(f"git ls-remote --heads origin {branch}", cwd=submodule_path):
+                self.run_command(f"git checkout {branch}", cwd=submodule_path)
+            if not self.is_up_to_date(submodule_path):
+                self.run_command(f"git pull origin {branch}", cwd=submodule_path)
 
     def process_repository(self, repo):
-        """Handle cloning, checkout, and submodule updates for a repository."""
+        """
+        Process a repository by cloning, checking out, pulling, and initializing submodules.
+
+        Args:
+            repo (dict): Dictionary containing repository details.
+        """
         repo_url = repo['repo_url']
         branch = repo['branch']
         repo_name = repo_url.split('/')[-1].replace('.git', '')
-
+        log.info(f"Processing repository: {repo_name} (branch: {branch})")
         self.clone_repository(repo_url, repo_name, branch)
         self.checkout_and_pull(repo_name, branch)
-
-        if self.initialize_submodules(repo_name):
-            log.info(f"Submodules initialized for {repo_name}, updating submodules...")
-        else:
-            log.info(f"No submodules to process for {repo_name} or they are already initialized.")
+        self.initialize_submodules(repo_name)
 
     def process_all_repositories(self, json_file):
         """
-        Process all repositories concurrently by reading a JSON file.
+        Process all repositories listed in a JSON file using concurrent threads.
+
+        Args:
+            json_file (str): Path to the JSON file containing repository details.
         """
-        try:
-            with open(json_file) as f:
-                data = json.load(f)
-        except FileNotFoundError:
-            log.error(f"JSON file not found: {json_file}. Please provide a valid file path.")
-            return
-        except json.JSONDecodeError as e:
-            log.error(f"Error parsing JSON file {json_file}: {e}")
-            return
-
-        repositories = data['repositories']
+        with open(json_file) as f:
+            repositories = json.load(f)['repositories']
         max_workers = min(32, multiprocessing.cpu_count() + 4)
-
-        try:
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                futures = [executor.submit(self.process_repository, repo) for repo in repositories]
-                for future in as_completed(futures):
-                    try:
-                        future.result()
-                    except Exception as e:
-                        log.error(f"Error processing repository: {e}")
-        except KeyboardInterrupt:
-            log.warning("Keyboard interrupt received. Waiting for current tasks to complete...")
-            executor.shutdown(wait=True)
-            log.info("All running tasks completed. Exiting gracefully.")
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(self.process_repository, repo) for repo in repositories]
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except Exception as e:
+                    log.error(f"Error processing repository: {e}")
 
     def _get_repo_lock(self, repo_path):
-        """Obtain or create a thread-safe lock for the repository."""
+        """
+        Retrieve a lock for the specified repository path, creating one if necessary.
+
+        Args:
+            repo_path (str): Path to the repository.
+
+        Returns:
+            RLock: Reentrant lock for the repository path.
+        """
         with self.repo_lock_global:
             if repo_path not in self.repo_locks:
                 self.repo_locks[repo_path] = RLock()
@@ -286,5 +229,5 @@ class GitRepositoryManager:
 
 
 if __name__ == "__main__":
-    manager = GitRepositoryManager(log_level=logging.INFO, timeout=120, retries=3)
+    manager = GitRepositoryManager(log_level=logging.DEBUG, timeout=120, retries=3)
     manager.process_all_repositories('repositories.json')
