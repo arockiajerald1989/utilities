@@ -127,6 +127,9 @@ class GitRepositoryManager:
                 raise
         else:
             log.info(f"Repository {repo_name} already exists. Skipping clone.")
+            if not self.is_up_to_date(repo_name):
+                log.info(f"Repository {repo_name} is not up to date. Attempting to pull latest changes.")
+                self.run_command(f"git pull origin {branch}", cwd=repo_name)
 
     def checkout_and_pull(self, repo_path, branch):
         """
@@ -137,7 +140,10 @@ class GitRepositoryManager:
             branch (str): Branch to check out.
         """
         with self._get_repo_lock(repo_path):
-            if self.get_current_branch(repo_path) != branch:
+            current_branch = self.get_current_branch(repo_path)
+            if current_branch != branch and not self.run_command(f"git branch --list {branch}", cwd=repo_path):
+                raise RuntimeError(f"Branch {branch} does not exist in {repo_path}")
+            if current_branch != branch:
                 self.run_command(f"git checkout {branch}", cwd=repo_path)
             if not self.is_up_to_date(repo_path):
                 self.run_command(f"git pull origin {branch}", cwd=repo_path)
@@ -154,7 +160,9 @@ class GitRepositoryManager:
         """
         if not os.path.exists(os.path.join(repo_path, '.gitmodules')):
             return False
-        self.run_command("git submodule update --init --recursive --jobs 4", cwd=repo_path)
+        if self.run_command("git submodule status", cwd=repo_path):
+            log.info(f"Initializing submodules for {repo_path}")
+            self.run_command("git submodule update --init --recursive --jobs 4", cwd=repo_path)
         return True
 
     def update_submodule(self, repo_path, submodule, branch="main"):
@@ -168,12 +176,12 @@ class GitRepositoryManager:
         """
         submodule_path = os.path.join(repo_path, submodule.split()[1])
         lock_file = os.path.join(repo_path, f".git/modules/{submodule_path}/index.lock")
-        if os.path.exists(lock_file):
-            os.remove(lock_file)
-        if not os.path.isdir(os.path.join(submodule_path, ".git")):
-            shutil.rmtree(submodule_path, ignore_errors=True)
-            self.run_command("git submodule update --init --recursive --force", cwd=repo_path)
         with self._get_repo_lock(submodule_path):
+            if os.path.exists(lock_file):
+                os.remove(lock_file)
+            if not os.path.isdir(os.path.join(submodule_path, ".git")):
+                shutil.rmtree(submodule_path, ignore_errors=True)
+                self.run_command("git submodule update --init --recursive --force", cwd=repo_path)
             if self.run_command(f"git ls-remote --heads origin {branch}", cwd=submodule_path):
                 self.run_command(f"git checkout {branch}", cwd=submodule_path)
             if not self.is_up_to_date(submodule_path):
@@ -203,7 +211,7 @@ class GitRepositoryManager:
         """
         with open(json_file) as f:
             repositories = json.load(f)['repositories']
-        max_workers = min(32, multiprocessing.cpu_count() + 4)
+        max_workers = min(32, multiprocessing.cpu_count())
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [executor.submit(self.process_repository, repo) for repo in repositories]
             for future in as_completed(futures):
