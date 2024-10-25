@@ -1,29 +1,41 @@
-def process_all_repositories(self, json_file):
+def initialize_submodules(self, repo_path):
     """
-    Process all repositories listed in a JSON file concurrently.
+    Initialize and update each submodule concurrently if they have changed since the last check.
 
     Args:
-        json_file (str): Path to the JSON file containing repository details.
+        repo_path (str): Path to the repository.
+
+    Returns:
+        bool: True if any submodule was initialized or updated; False otherwise.
     """
-    with open(json_file) as f:
-        repositories = json.load(f)['repositories']
-    max_workers = min(32, multiprocessing.cpu_count())
-    failed_repos = []
+    if not os.path.exists(os.path.join(repo_path, '.gitmodules')):
+        log.info(f"No submodules to initialize in {repo_path}")
+        return False
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {
-            executor.submit(self.process_repository, repo): repo
-            for idx, repo in enumerate(repositories)
-        }
+    # List all submodules
+    submodule_list = self.run_command("git config --file .gitmodules --get-regexp path", cwd=repo_path)
+    submodules = [line.split()[-1] for line in submodule_list.splitlines()]
+    updated = False
+
+    def init_submodule(submodule):
+        submodule_status = self.run_command(f"git submodule status {submodule}", cwd=repo_path)
+        if self.submodule_cache.get(submodule) == submodule_status:
+            log.info(f"Submodule {submodule} is up to date, skipping update.")
+            return False
+
+        log.info(f"Initializing and updating submodule {submodule}")
+        self.run_command(f"git submodule update --init --recursive -- {submodule}", cwd=repo_path)
+        self.submodule_cache[submodule] = submodule_status
+        return True
+
+    # Run submodule initialization concurrently
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {executor.submit(init_submodule, submodule): submodule for submodule in submodules}
         for future in as_completed(futures):
-            repo = futures[future]
             try:
-                future.result()
+                if future.result():
+                    updated = True
             except Exception as e:
-                failed_repos.append(str(e))
-                log.error(f"Error processing repository {repo['repo_url']}: {e}")
+                log.error(f"Failed to initialize submodule {futures[future]}: {e}")
 
-    if failed_repos:
-        log.error(f"Failed to process the following repositories: {failed_repos}")
-
-    self.save_processed_repos()
+    return updated
