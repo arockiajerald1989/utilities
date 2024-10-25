@@ -32,8 +32,10 @@ def run_command(self, cmd, cwd=None, timeout=None):
                 log.debug(f"Command output: {stdout}")
                 return stdout
         except subprocess.CalledProcessError as e:
-            log.error(f"Command failed: {e.stderr} (Attempt {attempt + 1}/{self.retries})")
-            if "fatal" in e.stderr.lower():
+            # Safely handle cases where e.stderr might be None
+            error_message = e.stderr if e.stderr else ""
+            log.error(f"Command failed: {error_message} (Attempt {attempt + 1}/{self.retries})")
+            if "fatal" in error_message.lower():
                 raise RuntimeError(f"Fatal error during execution: {cmd}")
         except subprocess.TimeoutExpired:
             log.error(f"Command timed out: {cmd} in {cwd}")
@@ -42,48 +44,3 @@ def run_command(self, cmd, cwd=None, timeout=None):
             raise RuntimeError(f"Command failed after {self.retries} attempts: {cmd}")
         time.sleep(backoff)
         backoff *= 2
-
-
-
-
-def initialize_submodules(self, repo_path):
-    """
-    Initialize and update each submodule concurrently if they have changed since the last check.
-
-    Args:
-        repo_path (str): Path to the repository.
-
-    Returns:
-        bool: True if any submodule was initialized or updated; False otherwise.
-    """
-    if not os.path.exists(os.path.join(repo_path, '.gitmodules')):
-        log.info(f"No submodules to initialize in {repo_path}")
-        return False
-
-    # List all submodules
-    submodule_list = self.run_command("git config --file .gitmodules --get-regexp path", cwd=repo_path)
-    submodules = [line.split()[-1] for line in submodule_list.splitlines()]
-    updated = False
-
-    def init_submodule(submodule):
-        submodule_status = self.run_command(f"git submodule status {submodule}", cwd=repo_path)
-        if self.submodule_cache.get(submodule) == submodule_status:
-            log.info(f"Submodule {submodule} is up to date, skipping update.")
-            return False
-
-        log.info(f"Initializing and updating submodule {submodule}")
-        self.run_command(f"git submodule update --init --recursive -- {submodule}", cwd=repo_path)
-        self.submodule_cache[submodule] = submodule_status
-        return True
-
-    # Run submodule initialization concurrently
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = {executor.submit(init_submodule, submodule): submodule for submodule in submodules}
-        for future in as_completed(futures):
-            try:
-                if future.result():
-                    updated = True
-            except Exception as e:
-                log.error(f"Failed to initialize submodule {futures[future]}: {e}")
-
-    return updated
