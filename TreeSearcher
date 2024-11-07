@@ -21,7 +21,7 @@ class TreeSearcher:
         self.regex_pattern = re.compile(regex_pattern)
         self.search_for = search_for
         self.file_size_filter = file_size_filter
-        self.max_depth = max_depth  # New parameter to limit search depth
+        self.max_depth = max_depth  # Depth control parameter
         self.matching_files = []
         self.matching_directories = []
         self.json_data = self.load_json()
@@ -56,11 +56,12 @@ class TreeSearcher:
     def search_files_recursively(self, node, current_depth=0):
         """Recursively search for files and/or directories matching the regex pattern with depth control."""
 
+        # If the node is empty or we have exceeded the max depth, stop recursion
         if not node or (self.max_depth is not None and current_depth > self.max_depth):
-            return  # Safeguard against exceeding max depth or missing nodes
+            return
         
-        # Check for directories if required
-        if self.search_for in ['directories', 'both'] and 'directories' in node:
+        # Check for directories if required, but only within the allowed depth
+        if self.search_for in ['directories', 'both'] and 'directories' in node and current_depth <= self.max_depth:
             for directory in node['directories']:
                 dir_name, dir_size = directory
 
@@ -76,8 +77,8 @@ class TreeSearcher:
                 if dir_node:
                     self.search_files_recursively(dir_node, current_depth + 1)
 
-        # Check for files if required
-        if self.search_for in ['files', 'both'] and 'files' in node:
+        # Check for files if required, but only within the allowed depth
+        if self.search_for in ['files', 'both'] and 'files' in node and current_depth <= self.max_depth:
             for file in node['files']:
                 file_name, file_size = file
 
@@ -98,7 +99,7 @@ class TreeSearcher:
         root = self.find_node_by_absolute_path(devices_node, self.search_path)
 
         if root:
-            self.search_files_recursively(root)
+            self.search_files_recursively(root, current_depth=0)
         else:
             print(f"No matching node found for {self.search_path}")
 
@@ -122,14 +123,14 @@ class TreeSearcher:
 regex_pattern = r'document_.*\.pdf$'
 search_path = "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices"
 
-# Create an instance of the TreeSearcher class
+# Create an instance of the TreeSearcher class with max_depth=0
 tree_searcher = TreeSearcher(
-    json_file_path=os.path.join(os.getcwd(), 'path_tree', 'tree.json'),
+    json_file_path=os.path.join('path_tree', 'tree.json'),
     search_path=search_path,
     regex_pattern=regex_pattern,
-    search_for="both",  # Search for both files and directories
-    file_size_filter="500KB",  # Optional: Set to '500KB' for size-based filtering
-    max_depth=3  # New depth control, limit search to a maximum depth of 3
+    search_for="files",  # Search only for files
+    file_size_filter="500KB",  # Filter files of size '500KB'
+    max_depth=0  # Limit search to the first level only
 )
 
 # Perform the search
