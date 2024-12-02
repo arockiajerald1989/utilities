@@ -23,7 +23,7 @@ class TreeSearcher:
         except re.error as e:
             raise ValueError(f"Invalid regex pattern: {regex_pattern}. Error: {e}")
         self.search_for = search_for
-        self.max_depth = max_depth  # Depth control parameter (None means search all levels)
+        self.max_depth = max_depth
         self.matching_files = []
         self.matching_directories = []
         self.json_data = self.load_json()
@@ -58,18 +58,18 @@ class TreeSearcher:
     def search_files_recursively(self, node, current_depth=0):
         """
         Recursively search for files and/or directories matching the regex pattern with optional depth control.
-        
+
         :param node: Current node in the JSON tree.
         :param current_depth: Current depth in the recursion (used to enforce max_depth).
         """
         if not node:
             return
 
-        # If max depth is specified and exceeded, stop recursion
+        # Stop recursion if max depth is exceeded
         if self.max_depth is not None and current_depth > self.max_depth:
             return
 
-        # Check for directories if required
+        # Process directories
         if self.search_for in ['directories', 'both'] and 'directories' in node:
             for directory in node['directories']:
                 dir_name, dir_size = directory
@@ -77,11 +77,12 @@ class TreeSearcher:
                     absolute_dir_path = os.path.join(node['absolute_path'], dir_name)
                     self.matching_directories.append((absolute_dir_path, dir_size))
 
+                # Recurse into the directory
                 dir_node = node.get(dir_name, None)
                 if dir_node:
                     self.search_files_recursively(dir_node, current_depth + 1)
 
-        # Check for files if required
+        # Process files
         if self.search_for in ['files', 'both'] and 'files' in node:
             for file in node['files']:
                 file_name, file_size = file
