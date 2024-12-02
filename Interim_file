@@ -6,7 +6,7 @@ from typing import Optional
 
 class TreeSearcher:
 
-    def __init__(self, json_file_path, search_path, regex_pattern, search_for="files", file_size_filter=None, max_depth: Optional[int] = None):
+    def __init__(self, json_file_path, search_path, regex_pattern, search_for="files", max_depth: Optional[int] = None):
         """
         Initialize the TreeSearcher class with necessary parameters.
 
@@ -14,8 +14,7 @@ class TreeSearcher:
         :param search_path: Absolute path to search within the JSON tree
         :param regex_pattern: Regular expression pattern for searching files or directories
         :param search_for: Can be 'files', 'directories', or 'both'
-        :param file_size_filter: Optional size filter (e.g., '<=500KB') for filtering files by size
-        :param max_depth: Optional integer to limit the search depth
+        :param max_depth: Optional integer to limit the search depth. Default is None (search all levels).
         """
         self.json_file_path = json_file_path
         self.search_path = search_path
@@ -24,8 +23,7 @@ class TreeSearcher:
         except re.error as e:
             raise ValueError(f"Invalid regex pattern: {regex_pattern}. Error: {e}")
         self.search_for = search_for
-        self.file_size_filter = self.parse_size_filter(file_size_filter) if file_size_filter else None
-        self.max_depth = max_depth
+        self.max_depth = max_depth  # Depth control parameter (None means search all levels)
         self.matching_files = []
         self.matching_directories = []
         self.json_data = self.load_json()
@@ -41,25 +39,6 @@ class TreeSearcher:
         except json.JSONDecodeError:
             print(f"Error: Could not decode JSON from {self.json_file_path}.")
             return None
-
-    def parse_size_filter(self, size_filter):
-        """Parse the size filter string to an operator and size in bytes."""
-        match = re.match(r'([<>]=?)?(\d+)([KMG]?B)', size_filter)
-        if not match:
-            raise ValueError(f"Invalid size filter format: {size_filter}")
-        operator, size, unit = match.groups()
-        size_in_bytes = int(size) * {'KB': 1024, 'MB': 1024**2, 'GB': 1024**3}.get(unit.upper(), 1)
-        return operator or '==', size_in_bytes
-
-    def compare_size(self, file_size_str, filter_operator, filter_size):
-        """Compare the file size string with the filter."""
-        match = re.match(r'(\d+)([KMG]?B)', file_size_str)
-        if not match:
-            return False
-        size, unit = match.groups()
-        size_in_bytes = int(size) * {'KB': 1024, 'MB': 1024**2, 'GB': 1024**3}.get(unit.upper(), 1)
-        operators = {'<=': lambda x, y: x <= y, '>=': lambda x, y: x >= y, '==': lambda x, y: x == y}
-        return operators[filter_operator](size_in_bytes, filter_size)
 
     def find_node_by_absolute_path(self, node, search_path):
         """Recursively find the node with the given absolute path."""
@@ -77,16 +56,24 @@ class TreeSearcher:
         return None
 
     def search_files_recursively(self, node, current_depth=0):
-        """Recursively search for files and/or directories matching the regex pattern with depth control."""
-        if not node or (self.max_depth is not None and current_depth > self.max_depth):
+        """
+        Recursively search for files and/or directories matching the regex pattern with optional depth control.
+        
+        :param node: Current node in the JSON tree.
+        :param current_depth: Current depth in the recursion (used to enforce max_depth).
+        """
+        if not node:
             return
 
+        # If max depth is specified and exceeded, stop recursion
+        if self.max_depth is not None and current_depth > self.max_depth:
+            return
+
+        # Check for directories if required
         if self.search_for in ['directories', 'both'] and 'directories' in node:
             for directory in node['directories']:
                 dir_name, dir_size = directory
                 if self.regex_pattern.match(dir_name):
-                    if self.file_size_filter and not self.compare_size(dir_size, *self.file_size_filter):
-                        continue
                     absolute_dir_path = os.path.join(node['absolute_path'], dir_name)
                     self.matching_directories.append((absolute_dir_path, dir_size))
 
@@ -94,12 +81,11 @@ class TreeSearcher:
                 if dir_node:
                     self.search_files_recursively(dir_node, current_depth + 1)
 
+        # Check for files if required
         if self.search_for in ['files', 'both'] and 'files' in node:
             for file in node['files']:
                 file_name, file_size = file
                 if self.regex_pattern.match(file_name):
-                    if self.file_size_filter and not self.compare_size(file_size, *self.file_size_filter):
-                        continue
                     absolute_file_path = os.path.join(node['absolute_path'], file_name)
                     self.matching_files.append((absolute_file_path, file_size))
 
@@ -129,6 +115,9 @@ class TreeSearcher:
             for file_path, file_size in self.matching_files:
                 print(f"File: {file_path}, Size: {file_size}")
 
+        if not self.matching_files and self.search_for in ['files', 'both']:
+            print("No matching files found.")
+
     def save_results(self, output_file="results.json"):
         """Save the results to a JSON file."""
         results = {
@@ -144,13 +133,13 @@ class TreeSearcher:
 regex_pattern = r'document_.*\.pdf$'
 search_path = "C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices"
 
+# Specify `max_depth=None` for unlimited search depth
 tree_searcher = TreeSearcher(
     json_file_path=os.path.join('path_tree', 'tree.json'),
     search_path=search_path,
     regex_pattern=regex_pattern,
     search_for="files",
-    file_size_filter="<=500KB",
-    max_depth=2
+    max_depth=None  # Optional depth. Set to a specific number (e.g., 2) to limit depth.
 )
 
 if tree_searcher.json_data:
