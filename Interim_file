@@ -25,7 +25,7 @@ class TreeSearcher:
             raise ValueError(f"Invalid regex pattern: {regex_pattern}. Error: {e}")
         self.search_for = search_for
         self.file_size_filter = self.parse_size_filter(file_size_filter) if file_size_filter else None
-        self.max_depth = max_depth  # Depth control parameter
+        self.max_depth = max_depth
         self.matching_files = []
         self.matching_directories = []
         self.json_data = self.load_json()
@@ -37,10 +37,10 @@ class TreeSearcher:
                 return json.load(file)
         except FileNotFoundError:
             print(f"Error: The file {self.json_file_path} was not found.")
-            return {}
+            return None
         except json.JSONDecodeError:
             print(f"Error: Could not decode JSON from {self.json_file_path}.")
-            return {}
+            return None
 
     def parse_size_filter(self, size_filter):
         """Parse the size filter string to an operator and size in bytes."""
@@ -58,7 +58,8 @@ class TreeSearcher:
             return False
         size, unit = match.groups()
         size_in_bytes = int(size) * {'KB': 1024, 'MB': 1024**2, 'GB': 1024**3}.get(unit.upper(), 1)
-        return eval(f"{size_in_bytes} {filter_operator} {filter_size}")
+        operators = {'<=': lambda x, y: x <= y, '>=': lambda x, y: x >= y, '==': lambda x, y: x == y}
+        return operators[filter_operator](size_in_bytes, filter_size)
 
     def find_node_by_absolute_path(self, node, search_path):
         """Recursively find the node with the given absolute path."""
@@ -77,43 +78,34 @@ class TreeSearcher:
 
     def search_files_recursively(self, node, current_depth=0):
         """Recursively search for files and/or directories matching the regex pattern with depth control."""
-
-        # If the node is empty or we have exceeded the max depth, stop recursion
         if not node or (self.max_depth is not None and current_depth > self.max_depth):
             return
 
-        # Check for directories if required, but only within the allowed depth
         if self.search_for in ['directories', 'both'] and 'directories' in node:
             for directory in node['directories']:
                 dir_name, dir_size = directory
-
-                # Apply regex to directory names
                 if self.regex_pattern.match(dir_name):
                     if self.file_size_filter and not self.compare_size(dir_size, *self.file_size_filter):
-                        continue  # Skip directories that don't match the size filter
+                        continue
                     absolute_dir_path = os.path.join(node['absolute_path'], dir_name)
                     self.matching_directories.append((absolute_dir_path, dir_size))
 
-                # Continue searching within the directory, increasing depth
                 dir_node = node.get(dir_name, None)
                 if dir_node:
                     self.search_files_recursively(dir_node, current_depth + 1)
 
-        # Check for files if required, but only within the allowed depth
         if self.search_for in ['files', 'both'] and 'files' in node:
             for file in node['files']:
                 file_name, file_size = file
-
-                # Apply regex and size filter (if provided)
                 if self.regex_pattern.match(file_name):
                     if self.file_size_filter and not self.compare_size(file_size, *self.file_size_filter):
-                        continue  # Skip files that don't match the size filter
+                        continue
                     absolute_file_path = os.path.join(node['absolute_path'], file_name)
                     self.matching_files.append((absolute_file_path, file_size))
 
     def search_directory(self):
         """Search the JSON tree for files or directories based on the regex pattern."""
-        if "devices" not in self.json_data:
+        if not self.json_data or "devices" not in self.json_data:
             print("Error: 'devices' node not found in the JSON.")
             return
 
@@ -136,9 +128,6 @@ class TreeSearcher:
             print("\nMatching Files:")
             for file_path, file_size in self.matching_files:
                 print(f"File: {file_path}, Size: {file_size}")
-
-        if not self.matching_files and self.search_for in ['files', 'both']:
-            print("No matching files found.")
 
     def save_results(self, output_file="results.json"):
         """Save the results to a JSON file."""
