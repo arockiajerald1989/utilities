@@ -5,20 +5,10 @@ from typing import Optional
 
 
 class TreeSearcher:
-    def __init__(self, json_file_path, search_path, regex_pattern, search_for="files", max_depth: Optional[int] = None):
-        """
-        Initializes the TreeSearcher class.
-
-        Args:
-            json_file_path (str): Path to the JSON file.
-            search_path (str): Absolute path to search within the JSON tree.
-            regex_pattern (str): Regular expression pattern for searching.
-            search_for (str, optional): Can be 'files', 'directories', or 'both'. Defaults to 'files'.
-            max_depth (int, optional): Maximum search depth. Defaults to None (no limit).
-        """
+    def __init__(self, json_file_path, search_path, regex_pattern, search_for="files", max_depth: Optional[int] = None, flags=0):
         self.json_file_path = json_file_path
         self.search_path = search_path
-        self.regex_pattern = re.compile(regex_pattern)
+        self.regex_pattern = re.compile(regex_pattern, flags)
         self.search_for = search_for
         self.max_depth = max_depth
         self.matching_files = []
@@ -26,7 +16,6 @@ class TreeSearcher:
         self.json_data = self.load_json()
 
     def load_json(self):
-        """Loads the JSON data from the specified file."""
         print(f"Attempting to load JSON from: {self.json_file_path}")
         if not os.path.exists(self.json_file_path):
             print(f"Error: The file {self.json_file_path} does not exist.")
@@ -39,57 +28,43 @@ class TreeSearcher:
             return None
 
     def find_node_by_absolute_path(self, node, search_path):
-        """Recursively finds the node with the given absolute path."""
         if node.get('absolute_path') == search_path:
             return node
 
         if 'directories' in node:
             for directory in node['directories']:
                 dir_name, _ = directory
-                dir_node = next((d for d in node['directories'] if d[0] == dir_name), None)
-                if dir_node:
-                    result = self.find_node_by_absolute_path(node[dir_name], search_path)
-                    if result:
-                        return result
+                dir_node = node.get(dir_name, {})
+                result = self.find_node_by_absolute_path(dir_node, search_path)
+                if result:
+                    return result
         return None
 
     def search_files_recursively(self, node, current_depth=0):
-        """Recursively searches for files and/or directories matching the regex pattern."""
         if not node:
             return
 
         if self.max_depth is not None and current_depth > self.max_depth:
             return
 
-        # Debugging: Print the current depth and node
-        print(f"Current Depth: {current_depth}, Node: {node.get('absolute_path', 'No path available')}")
-
-        # Check files in the current node
-        if self.search_for in ['files', 'both'] and 'files' in node:
-            for file in node['files']:
-                file_name, file_size = file
-                print(f"Checking file: {file_name}")
-                if self.regex_pattern.match(file_name):
-                    print(f"Matched file: {file_name}")
-                    absolute_file_path = os.path.join(node['absolute_path'], file_name)
-                    self.matching_files.append((absolute_file_path, file_size))
-
-        # Check directories in the current node
         if self.search_for in ['directories', 'both'] and 'directories' in node:
             for directory in node['directories']:
                 dir_name, dir_size = directory
-                print(f"Checking directory: {dir_name}")
                 if self.regex_pattern.match(dir_name):
-                    print(f"Matched directory: {dir_name}")
                     absolute_dir_path = os.path.join(node['absolute_path'], dir_name)
                     self.matching_directories.append((absolute_dir_path, dir_size))
 
-                # Recursively process subdirectories
                 dir_node = node.get(dir_name, {})
                 self.search_files_recursively(dir_node, current_depth + 1)
 
+        if self.search_for in ['files', 'both'] and 'files' in node:
+            for file in node['files']:
+                file_name, file_size = file
+                if self.regex_pattern.match(file_name):
+                    absolute_file_path = os.path.join(node['absolute_path'], file_name)
+                    self.matching_files.append((absolute_file_path, file_size))
+
     def search_directory(self):
-        """Searches the JSON tree for files or directories based on the regex pattern."""
         if not self.json_data or "devices" not in self.json_data:
             print("Error: 'devices' node not found in the JSON.")
             return
@@ -103,9 +78,8 @@ class TreeSearcher:
             print(f"No matching node found for {self.search_path}")
 
     def display_results(self):
-        """Displays the matching files and directories."""
         if self.search_for in ['directories', 'both'] and self.matching_directories:
-            print("\nMatching Directories:")
+            print("Matching Directories:")
             for dir_path, dir_size in self.matching_directories:
                 print(f"Directory: {dir_path}, Size: {dir_size}")
 
@@ -115,34 +89,57 @@ class TreeSearcher:
                 print(f"File: {file_path}, Size: {file_size}")
 
         if not self.matching_files and self.search_for in ['files', 'both']:
-            print("\nNo matching files found.")
+            print("No matching files found.")
         if not self.matching_directories and self.search_for in ['directories', 'both']:
-            print("\nNo matching directories found.")
+            print("No matching directories found.")
 
     def save_results(self, output_file="results.json"):
-        """Saves the results to a JSON file."""
+        """Saves the results to a JSON file in the current directory."""
+        current_directory = os.getcwd()  # Get the current working directory
+        output_path = os.path.join(current_directory, output_file)  # Combine with output filename
         results = {
             "matching_files": self.matching_files,
             "matching_directories": self.matching_directories
         }
-        with open(output_file, 'w') as file:
+        with open(output_path, 'w') as file:
             json.dump(results, file, indent=4)
-        print(f"Results saved to {output_file}")
+        print(f"Results saved to {output_path}")
 
 
-# Sample Usage
-tree_searcher = TreeSearcher(
-    json_file_path=r"C:\Users\T14 Windows 11\PycharmProjects\path_tree\working_models\tree.json",
-    search_path="C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices",
-    regex_pattern=r'document.*\.pdf',  # Match both files and directories
-    search_for="both",  # Search for both files and directories
-    max_depth=1  # Remove depth limit for full search, or set a value (e.g., 2) to limit recursion depth
-)
+# Test Cases
+test_cases = [
+    {"regex_pattern": r'document.*\.pdf', "search_for": "files", "max_depth": None},
+    {"regex_pattern": r'devices.*', "search_for": "directories", "max_depth": 2},
+    {"regex_pattern": r'document.*|devices.*', "search_for": "both", "max_depth": 1},
+    {"regex_pattern": r'.*\.(pdf|docx|txt)$', "search_for": "files", "max_depth": 3},
+    {"regex_pattern": r'document.*\.PDF', "search_for": "files", "max_depth": None, "flags": re.IGNORECASE},
+    {"regex_pattern": r'nomatch.*', "search_for": "both", "max_depth": None},
+    {"regex_pattern": r'test.*', "search_for": "directories", "max_depth": 4},
+    {"regex_pattern": r'.*config.*', "search_for": "files", "max_depth": None},
+    {"regex_pattern": r'.*', "search_for": "files", "max_depth": None, "file_size_filter": 500},
+    {"regex_pattern": r'summary.*\.docx', "search_for": "files", "max_depth": 1},
+]
 
-# Run the search
-if tree_searcher.json_data:
+for i, case in enumerate(test_cases, 1):
+    print(f"\nRunning Test Case {i}...")
+    flags = case.get("flags", 0)
+    file_size_filter = case.get("file_size_filter", None)
+
+    tree_searcher = TreeSearcher(
+        json_file_path=r"C:\Users\T14 Windows 11\PycharmProjects\path_tree\working_models\tree.json",
+        search_path="C:\\Users\\T14 Windows 11\\PycharmProjects\\path_tree\\devices",
+        regex_pattern=case["regex_pattern"],
+        search_for=case["search_for"],
+        max_depth=case["max_depth"],
+        flags=flags
+    )
+
     tree_searcher.search_directory()
+
+    if file_size_filter:
+        tree_searcher.matching_files = [
+            (path, size) for path, size in tree_searcher.matching_files if int(size.replace("KB", "").replace("MB", "")) > file_size_filter
+        ]
+
     tree_searcher.display_results()
-    tree_searcher.save_results()
-else:
-    print("Failed to load or process the JSON data.")
+    tree_searcher.save_results(output_file=f"results_case_{i}.json")
