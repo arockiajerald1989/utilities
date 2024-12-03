@@ -1,3 +1,37 @@
+def search_files_recursively(self, node, current_depth=0):
+    if not node:
+        return
+
+    # Stop if max depth is exceeded
+    if self.max_depth is not None and current_depth > self.max_depth:
+        return
+
+    # Always traverse directories to continue the search
+    if 'directories' in node:
+        for directory in node['directories']:
+            dir_name, dir_size = directory
+            dir_node = node.get(dir_name, {})
+            
+            # Match directory if search_for includes directories
+            if self.search_for in ['directories', 'both'] and self.regex_pattern.match(dir_name):
+                absolute_dir_path = os.path.join(node['absolute_path'], dir_name)
+                self.matching_directories.append((absolute_dir_path, dir_size))
+            
+            # Recurse into the subdirectory
+            self.search_files_recursively(dir_node, current_depth + 1)
+
+    # Process files if search_for includes files
+    if self.search_for in ['files', 'both'] and 'files' in node:
+        for file in node['files']:
+            file_name, file_size = file
+            if self.regex_pattern.match(file_name):
+                absolute_file_path = os.path.join(node['absolute_path'], file_name)
+                self.matching_files.append((absolute_file_path, file_size))
+
+
+
+
+
 import re
 import os
 import json
