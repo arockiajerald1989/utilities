@@ -1,0 +1,75 @@
+import re
+import json
+from pathlib import Path
+from datetime import datetime
+
+def extract_last_dict_between_timestamps(file_path, start_timestamp, end_timestamp):
+    """
+    Extract the last valid JSON dictionary between two timestamps from a single log file.
+    
+    Args:
+        file_path (str): Path to the log file
+        start_timestamp (str): Start time in 'YYYY-MM-DD HH:MM:SS' format
+        end_timestamp (str): End time in 'YYYY-MM-DD HH:MM:SS' format
+    
+    Returns:
+        dict: Last valid JSON dictionary found within the time range, or None if none found
+    
+    Raises:
+        ValueError: If timestamps are not in the correct format
+        FileNotFoundError: If the specified file does not exist
+    """
+    # Validate timestamp format
+    try:
+        datetime.strptime(start_timestamp, '%Y-%m-%d %H:%M:%S')
+        datetime.strptime(end_timestamp, '%Y-%m-%d %H:%M:%S')
+    except ValueError:
+        raise ValueError("Timestamps must be in 'YYYY-MM-DD HH:MM:SS' format")
+
+    # Check if file exists
+    if not Path(file_path).is_file():
+        raise FileNotFoundError(f"File not found: {file_path}")
+
+    # Regex patterns
+    timestamp_pattern = re.compile(r'^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\]')  # Matches [YYYY-MM-DD HH:MM:SS]
+    json_pattern = re.compile(r'\{.*?\}')  # Non-greedy match for JSON dictionaries
+
+    last_dict = None
+    within_range = False
+
+    # Process file line-by-line
+    with open(file_path, 'r', encoding='utf-8') as file:
+        for line in file:
+            line = line.strip()
+            timestamp_match = timestamp_pattern.match(line)
+            if timestamp_match:
+                # Extract timestamp from within brackets
+                log_timestamp = line[1:20]  # 'YYYY-MM-DD HH:MM:SS'
+                if start_timestamp <= log_timestamp <= end_timestamp:
+                    within_range = True
+                else:
+                    within_range = False
+            elif within_range:
+                # Find all JSON dictionaries in the line
+                json_matches = json_pattern.findall(line)
+                for match in json_matches:
+                    try:
+                        last_dict = json.loads(match)  # Update with last valid JSON
+                    except json.JSONDecodeError:
+                        continue  # Skip invalid JSON silently
+
+    return last_dict
+
+# Example usage
+if __name__ == "__main__":
+    file_path = "log_file.txt"
+    start_time = "2025-01-01 11:00:00"
+    end_time = "2025-01-01 12:00:00"
+
+    try:
+        result = extract_last_dict_between_timestamps(file_path, start_time, end_time)
+        print(f"File: {file_path}")
+        print(f"Last Extracted Dictionary: {result}")
+    except Exception as e:
+        print(f"File: {file_path}")
+        print(f"Error: {str(e)}")
