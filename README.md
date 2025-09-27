@@ -8,25 +8,25 @@ This repository contains a collection of Python utilities for data processing, f
 
 ### `git-tools/`
 Git repository management and operations
-- **Gitoperations.py** - Comprehensive Git repository manager
-- **Sample** - Git branch detection utility
-- **Sampling** - Advanced Git manager with caching/logging
-- **Test** - Enhanced Git manager with documentation
-- **Repovalidation** - JSON repository config validator
+- **git_operations.py** - Comprehensive Git repository manager
+- **git_branch_utils.py** - Git branch detection utility
+- **git_advanced_manager.py** - Advanced Git manager with caching/logging
+- **git_repository_manager.py** - Enhanced Git manager with documentation
+- **repo_validator.py** - JSON repository config validator
 
 ### `data-processing/`
 Data analysis and processing utilities
 - **multibagger_stocks.py** - Stock market analysis with technical indicators
-- **Multiline_log_processor** - JSON log processor for timestamped data
+- **multiline_log_processor.py** - JSON log processor for timestamped data
 
 ### `api-integration/`
 API clients and external service integration
-- **Apiclass** - REST API client for task management
-- **Spl** - Splunk HEC plugin for JSON data posting
+- **task_api_client.py** - REST API client for task management
+- **splunk_hec_client.py** - Splunk HEC plugin for JSON data posting
 
 ### `file-system/`
 File system navigation and search utilities
-- **TreeSearcher** - File system search with regex/depth control
+- **tree_searcher.py** - File system search with regex/depth control
 - **interim_file_latest.py** - Advanced TreeSearcher with test cases
 - **search_payload_json.py** - Wildcard-based JSON file search
 - **path_tree_with_os.py** - Directory tree structure generator
@@ -47,8 +47,8 @@ Business process automation and HR tools
 
 ### `samples/`
 Code samples and template files
-- **Sample.py** - TreeSearcher class sample implementation
-- **Delta** - Git cloning function snippet
+- **tree_searcher_sample.py** - TreeSearcher class sample implementation
+- **git_clone_sample.py** - Git cloning function snippet
 
 ### `archive/`
 Legacy versions and deprecated utilities that have been superseded by enhanced implementations. See `archive/README.md` for detailed information about archived files.
