@@ -5,9 +5,15 @@ import matplotlib.pyplot as plt
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 import os
 import json
+import logging
+from config import *
 
-# Directory to cache stock data
-CACHE_DIR = 'stock_cache'
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Ensure the cache directory exists
 if not os.path.exists(CACHE_DIR):
@@ -49,16 +55,15 @@ def fetch_stock_data(symbol):
 
         return data
     except Exception as e:
-        print(f"Error fetching data for {symbol}: {e}")
+        logger.error(f"Error fetching data for {symbol}: {e}")
         return None
 
 # Function to get a list of NASDAQ stock symbols
-def get_nasdaq_symbols(limit=100):
-    nasdaq_symbols = ['ADBE', 'AMD', 'ADI', 'ANSS', 'AAPL', 'AMAT', 'ARM', 'ASML', 'TEAM', 'ADSK', 'AVGO', 'CDNS', 'CDW', 'CSCO', 'CTSH', 'CRWD', 'DDOG', 'FTNT', 'GFS', 'INTC', 'INTU', 'KLAC', 'LRCX', 'MRVL', 'MCHP', 'MU', 'MSFT', 'MDB', 'NVDA', 'NXPI']
-    return nasdaq_symbols[:limit]
+def get_nasdaq_symbols(limit=DEFAULT_SYMBOL_LIMIT):
+    return NASDAQ_SYMBOLS[:limit]
 
 # Function to process stocks in batches
-def process_stocks_in_batches(symbols, batch_size=10, timeout=180):
+def process_stocks_in_batches(symbols, batch_size=BATCH_SIZE, timeout=TIMEOUT_SECONDS):
     all_results = []
     for i in range(0, len(symbols), batch_size):
         batch = symbols[i:i + batch_size]
@@ -71,9 +76,9 @@ def process_stocks_in_batches(symbols, batch_size=10, timeout=180):
                     if result:
                         all_results.append(result)
                 except TimeoutError:
-                    print(f"Fetching data for {symbol} timed out.")
+                    logger.warning(f"Fetching data for {symbol} timed out.")
                 except Exception as e:
-                    print(f"Error processing {symbol}: {e}")
+                    logger.error(f"Error processing {symbol}: {e}")
     return all_results
 
 # Function to fetch technical indicators for a given stock symbol
@@ -94,8 +99,53 @@ def fetch_technical_indicators(symbol):
         }
         return indicators
     except Exception as e:
-        print(f"Error fetching technical indicators for {symbol}: {e}")
+        logger.error(f"Error fetching technical indicators for {symbol}: {e}")
         return None
+
+# Safe function to calculate enhanced score without eval()
+def calculate_enhanced_score(df):
+    """
+    Calculate the enhanced multibagger score safely without using eval().
+
+    Args:
+        df (DataFrame): Stock data with financial metrics
+
+    Returns:
+        Series: Enhanced scores for each stock
+    """
+    # Base score components
+    base_score = (
+        df.get('EGR', 0) + df.get('ROE', 0) + df.get('PE', 0) +
+        df.get('DE', 0) + df.get('PEG', 0) + df.get('EV_EBITDA', 0) +
+        df.get('FCF_Yield', 0) + df.get('ROIC', 0)
+    )
+
+    # Add optional growth metrics
+    if 'SGR' in df.columns and not df['SGR'].isna().all():
+        base_score += df['SGR']
+    if 'PGR' in df.columns and not df['PGR'].isna().all():
+        base_score += df['PGR']
+
+    # Multiply by additional factors
+    score = base_score
+
+    multipliers = [
+        (1 + df.get('DY', 0)) if 'DY' in df.columns else 1,
+        df.get('PB', 1) if 'PB' in df.columns else 1,
+        df.get('OM', 1) if 'OM' in df.columns else 1,
+        df.get('CR', 1) if 'CR' in df.columns else 1,
+        df.get('DER', 1) if 'DER' in df.columns else 1,
+        df.get('SMA_50', 1) if 'SMA_50' in df.columns else 1,
+        df.get('SMA_200', 1) if 'SMA_200' in df.columns else 1,
+        df.get('RSI', 1) if 'RSI' in df.columns else 1,
+        df.get('MACD', 1) if 'MACD' in df.columns else 1,
+        df.get('Signal', 1) if 'Signal' in df.columns else 1
+    ]
+
+    for multiplier in multipliers:
+        score *= multiplier
+
+    return score
 
 # Fetching the list of NASDAQ stock symbols (limit to 100 for now)
 nasdaq_symbols = get_nasdaq_symbols(30)
@@ -194,41 +244,12 @@ print(df.head())
 if df.empty:
     print("No valid stock data available after cleaning.")
 else:
-    # Calculating Enhanced Multibagger Potential Score
-    score_components = [
-        '((df["EGR"] + df["ROE"] + df["PE"] + df["DE"] + df["PEG"] + df["EV_EBITDA"] + df["FCF_Yield"] + df["ROIC"])'
-    ]
-    if 'SGR' in df.columns and not df['SGR'].isna().all():
-        score_components[0] += ' + df["SGR"]'
-    if 'PGR' in df.columns and not df['PGR'].isna().all():
-        score_components[0] += ' + df["PGR"]'
-    score_components[0] += ')'
-    if 'DY' in df.columns:
-        score_components.append('(1 + df["DY"])')
-    if 'PB' in df.columns:
-        score_components.append('df["PB"]')
-    if 'OM' in df.columns:
-        score_components.append('df["OM"]')
-    if 'CR' in df.columns:
-        score_components.append('df["CR"]')
-    if 'DER' in df.columns:
-        score_components.append('df["DER"]')
-    if 'SMA_50' in df.columns:
-        score_components.append('df["SMA_50"]')
-    if 'SMA_200' in df.columns:
-        score_components.append('df["SMA_200"]')
-    if 'RSI' in df.columns:
-        score_components.append('df["RSI"]')
-    if 'MACD' in df.columns:
-        score_components.append('df["MACD"]')
-    if 'Signal' in df.columns:
-        score_components.append('df["Signal"]')
-
-    score_formula = ' * '.join(score_components)
-    df['Enhanced_Score'] = eval(score_formula)
+    # Calculating Enhanced Multibagger Potential Score (safely without eval)
+    logger.info("Calculating enhanced multibagger scores...")
+    df['Enhanced_Score'] = calculate_enhanced_score(df)
 
     # Scaling Enhanced_Score to avoid extremely small values
-    df['Enhanced_Score'] = df['Enhanced_Score'] * 1e12  # Scale up by 1 trillion for better readability
+    df['Enhanced_Score'] = df['Enhanced_Score'] * SCORE_SCALE_FACTOR
 
     # Sorting stocks by the Enhanced Multibagger Potential Score in descending order
     df_sorted = df.sort_values(by='Enhanced_Score', ascending=False)
