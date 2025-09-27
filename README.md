@@ -1,6 +1,57 @@
+# Utilities Repository
+
 ## Overview
 
-This Python script extracts, processes, and restructures data from an Excel file, generating a new, well-formatted Excel file for further analysis and utilization.
+This repository contains a collection of Python utilities for data processing, file analysis, and automation tasks. The utilities include Excel data processing, Git operations, file system analysis, log processing, and more.
+
+## Repository Structure
+
+### `git-tools/`
+Git repository management and operations
+- **Gitoperations.py** - Comprehensive Git repository manager
+- **Sample** - Git branch detection utility
+- **Sampling** - Advanced Git manager with caching/logging
+- **Test** - Enhanced Git manager with documentation
+- **Repovalidation** - JSON repository config validator
+
+### `data-processing/`
+Data analysis and processing utilities
+- **multibagger_stocks.py** - Stock market analysis with technical indicators
+- **Multiline_log_processor** - JSON log processor for timestamped data
+
+### `api-integration/`
+API clients and external service integration
+- **Apiclass** - REST API client for task management
+- **Spl** - Splunk HEC plugin for JSON data posting
+
+### `file-system/`
+File system navigation and search utilities
+- **TreeSearcher** - File system search with regex/depth control
+- **interim_file_latest.py** - Advanced TreeSearcher with test cases
+- **search_payload_json.py** - Wildcard-based JSON file search
+- **path_tree_with_os.py** - Directory tree structure generator
+- **path_tree.json** - Sample directory tree data
+- **path_tree.sh** - Bash script for JSON directory trees
+
+### `business-tools/`
+Business process automation and HR tools
+- **employee_records_missing_info.py** - HR documentation analyzer
+- **payroll_calculator.py** - Payroll with overtime/shift calculations
+- **invoice_creation.py** - Invoice generator with pivot tables
+- **timesheet_analyzer.py** - Timesheet processor
+- **xls_file_parser.py** - Excel timesheet parser
+- **xlsfileparser_tk.py** - TK-specific Excel parser
+- **floor2plan.py** - Web scraping automation for timesheets
+- **compare_sheets.py** - Excel comparison for FTP/TS business data
+- **ftp_vs_ts_comparison.py** - Business data comparison with pivot tables
+
+### `samples/`
+Code samples and template files
+- **Sample.py** - TreeSearcher class sample implementation
+- **Delta** - Git cloning function snippet
+
+### `archive/`
+Legacy versions and deprecated utilities that have been superseded by enhanced implementations. See `archive/README.md` for detailed information about archived files.
 
 ## Key Functionalities:
 
